@@ -18,11 +18,10 @@
 #define PCAP_ZONE 0
 #define PCAP_SIGFIGS 0
 #define PCAP_SNAPLEN 65535
-#define PCAP_NETWORK 105 // IEEE 802.11 (+ radiotap header if we added it, but raw 802.11 is 105 for 802.11)
+#define PCAP_NETWORK 105 // IEEE 802.11
 
 // Buffer Settings
-#define BUF_SIZE 32768 // 32KB Buffer
-#define FLUSH_INTERVAL 1000 // Force flush every 1s if not full
+#define BUF_SIZE 32768 // 32KB Ring Buffer
 
 struct PcapGlobalHeader {
     uint32_t magic_number;
@@ -45,8 +44,13 @@ class SDManager {
 public:
     SDManager();
     bool begin();
+
+    // ISR Safe: Copies data to Ring Buffer
     void addPacket(uint8_t* buf, uint32_t len);
-    void saveBuffer();
+
+    // Task Safe: Writes data from Ring Buffer to SD
+    void processBuffer();
+
     void openNewPCAP();
     
     bool isReady;
@@ -56,8 +60,10 @@ private:
     File pcapFile;
     
     uint8_t *buffer;
-    uint32_t bufPtr;
-    unsigned long lastFlushTime;
+
+    // Ring Buffer Indices
+    volatile uint32_t head; // Write index (ISR modifies)
+    volatile uint32_t tail; // Read index (Task modifies)
     
     void writeGlobalHeader();
     String getNextFileName();
