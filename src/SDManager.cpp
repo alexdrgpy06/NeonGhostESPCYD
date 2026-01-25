@@ -9,6 +9,7 @@ SDManager::SDManager() {
 }
 
 bool SDManager::begin() {
+  // Task A: Implement Buffer System (inspired by Marauder)
   // Allocate Buffer
   if (buffer == NULL) {
     buffer = (uint8_t *)malloc(BUF_SIZE);
@@ -18,7 +19,8 @@ bool SDManager::begin() {
     }
   }
 
-  // Init SPI
+  // Task A: Initialize SD card using HSPI (SCK=18, MISO=19, MOSI=23, CS=5)
+  // Note: HSPI Host is used but mapped to VSPI pins, as VSPI Host is used by TFT/Touch.
   spi->begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
 
   // Init SD
@@ -90,6 +92,7 @@ void SDManager::addPacket(uint8_t *packet, uint32_t len) {
   if (!isReady || !pcapFile)
     return;
 
+  // Task A: Buffer System
   // Check if packet fits in remaining buffer
   // Packet needs: Header (16 bytes) + Payload (len)
   uint32_t required = sizeof(PcapPacketHeader) + len;

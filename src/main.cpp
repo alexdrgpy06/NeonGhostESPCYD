@@ -11,6 +11,9 @@
 // --- OBJECTS ---
 TFT_eSPI tft = TFT_eSPI();
 
+// Global variable for Task B/C integration (Phase 2)
+volatile uint32_t handshakes_captured = 0;
+
 // TOUCH CONFIG
 #define XPT_CS  33
 #define XPT_IRQ 36 
@@ -145,11 +148,12 @@ void evolver() {
   drawCyberButton(165, btnY, 70, 30, "SAVE", C_HUD);
 }
 
-// --- SNIFFER TASK ---
+// --- SNIFFER TASK (Task C: Multitasking) ---
+// Runs on Core 0 to prevent UI blocking
 void snifferTask(void *parameter) {
   sniffer.start();
   while (true) {
-    sniffer.loop();
+    sniffer.loop(); // Handles channel hopping
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
@@ -215,6 +219,7 @@ void loop() {
 
   if (sniffer.hasHandshake()) {
     sniffer.clearHandshake();
+    handshakes_captured++; // Feeds the global counter
     miPet.xp += 50; 
   }
   if (sniffer.hasDeauth()) {
