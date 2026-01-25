@@ -46,7 +46,8 @@ void PacketSniffer::loop() {
   if (!isRunning)
     return;
 
-  // Channel Hopping (200ms)
+  // Task B: Channel Hopping
+  // Switch WiFi channels (1-13) every 200ms
   unsigned long now = millis();
   if (now - lastChannelHop > 200) {
     lastChannelHop = now;
@@ -107,13 +108,13 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
 
   // --- DATA FRAMES (Type 2) ---
   else if (type == 2) {
-    // Check for EAPOL
-    // Brute force search for EAPOL pattern in first 60 bytes
+    // Task B: Packet Parsing (EAPOL Detection)
     // EtherType EAPOL = 0x888E
+    // We scan the first 60 bytes to find the EtherType pattern
     for (int i = 24; i < len - 6 && i < 60; i++) {
       if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
         handshakeCount++;
-        handshakeDetected = true;
+        handshakeDetected = true; // Sets flag for Task B Game Logic
         savePacket = true;
         Serial.println("[Sniffer] EAPOL DETECTED!");
         break;
@@ -121,7 +122,7 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     }
   }
 
-  // Save to SD Buffer only if interesting (Smart Filter)
+  // Pass captured packets to SDManager (Task A/B Integration)
   if (savePacket && sdManager) {
     sdManager->addPacket(packet, len);
   }

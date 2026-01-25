@@ -11,6 +11,9 @@
 // --- OBJECTS ---
 TFT_eSPI tft = TFT_eSPI();
 
+// Global variable for Task B/C integration (Phase 2)
+volatile uint32_t handshakes_captured = 0;
+
 // TOUCH CONFIG
 #define XPT_CS  33
 #define XPT_IRQ 36 
@@ -70,10 +73,11 @@ void drawCyberButton(int x, int y, int w, int h, const char* label, uint16_t col
     tft.fillRoundRect(x, y, w, h, 6, 0x10A2);
     tft.drawRoundRect(x, y, w, h, 6, color);
     
-    tft.setTextFont(2); // Larger Font
+    tft.setTextFont(4); // Larger Font (Font 4)
     tft.setTextSize(1);
     tft.setTextColor(color, 0x10A2);
-    tft.drawCentreString(label, x + w/2, y + (h/2) - 8, 2);
+    // Adjust Center String Y offset for Font 4
+    tft.drawCentreString(label, x + w/2, y + (h/2) - 12, 4);
 }
 
 // --- UI LOGIC (Simplified - No Mutex) ---
@@ -82,38 +86,40 @@ void updateUI() {
       tft.fillRect(0, 0, 240, 40, C_FONDO); 
       tft.drawFastHLine(0, 40, 240, C_HUD);
       
-      tft.setTextFont(2); // IMPORTANT: Font 2 is readable
+      tft.setTextFont(4); // Switch to Font 4 for visibility
       tft.setTextSize(1);
       tft.setTextColor(C_HUD, C_FONDO);
       
       // Line 1: LVL
-      tft.setCursor(10, 10);
+      tft.setCursor(10, 8);
       tft.print("LVL ");
       tft.print(miPet.nivel);
       
       // Line 1: XP (Right)
-      tft.setCursor(140, 10); 
+      tft.setCursor(130, 8);
       tft.print("XP ");
       tft.print(miPet.xp);
       tft.print("/");
       tft.print(miPet.xpNextLevel);
       
-      // Line 2: Status (Centered)
+      // Line 2: Status (Centered) - Use Font 2 for status if long, or Font 4 if short
+      tft.setTextFont(2);
       if(sniffer.hasHandshake()) {
           tft.setTextColor(TFT_YELLOW, C_FONDO);
-          tft.drawCentreString("! EAPOL CAPTURED !", 120, 25, 2);
+          tft.drawCentreString("! EAPOL CAPTURED !", 120, 30, 2); // Keep Font 2 for long string or ensure it fits
       } else if (sniffer.hasDeauth()) {
           tft.setTextColor(TFT_RED, C_FONDO);
-          tft.drawCentreString("JAMMING DETECTED", 120, 25, 2);
+          tft.drawCentreString("JAMMING DETECTED", 120, 30, 2);
       } else {
           tft.setTextColor(0x5555, C_FONDO);
-          tft.drawCentreString("SCANNING...", 120, 25, 2);
+          tft.drawCentreString("SCANNING...", 120, 30, 2);
       }
 
       // 2. CREATURE RENDER
       renderer.draw(120, 160, miPet.dnaSeed, miPet.nivel);
       
       // 3. PACKET COUNTER
+      tft.setTextFont(2);
       tft.setTextColor(0x2222, C_FONDO);
       tft.setCursor(80, 250);
       tft.print("PKTS: ");
@@ -139,17 +145,18 @@ void evolver() {
 
   drawGrid();
   // Redraw buttons handled in main setup/loop part? No, redraw here:
-  int btnY = 280;
-  drawCyberButton(5, btnY, 70, 30, "SCAN", C_HUD);
-  drawCyberButton(85, btnY, 70, 30, "DATA", C_HUD);
-  drawCyberButton(165, btnY, 70, 30, "SAVE", C_HUD);
+  int btnY = 270; // Moved up to fit larger buttons
+  drawCyberButton(5, btnY, 70, 40, "SCAN", C_HUD);
+  drawCyberButton(85, btnY, 70, 40, "DATA", C_HUD);
+  drawCyberButton(165, btnY, 70, 40, "SAVE", C_HUD);
 }
 
-// --- SNIFFER TASK ---
+// --- SNIFFER TASK (Task C: Multitasking) ---
+// Runs on Core 0 to prevent UI blocking
 void snifferTask(void *parameter) {
   sniffer.start();
   while (true) {
-    sniffer.loop();
+    sniffer.loop(); // Handles channel hopping
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
@@ -187,10 +194,10 @@ void setup() {
 
   // Initial Draw
   drawGrid();
-  int btnY = 280;
-  drawCyberButton(5, btnY, 70, 30, "SCAN", C_HUD);
-  drawCyberButton(85, btnY, 70, 30, "DATA", C_HUD);
-  drawCyberButton(165, btnY, 70, 30, "SAVE", C_HUD);
+  int btnY = 270; // Moved up
+  drawCyberButton(5, btnY, 70, 40, "SCAN", C_HUD);
+  drawCyberButton(85, btnY, 70, 40, "DATA", C_HUD);
+  drawCyberButton(165, btnY, 70, 40, "SAVE", C_HUD);
 }
 
 void loop() {
@@ -206,7 +213,7 @@ void loop() {
     // VISUAL FEEDBACK (Hardware Test)
     tft.fillCircle(x, y, 3, TFT_WHITE);
     
-    if(y > 280) { // Button Area
+    if(y > 270) { // Button Area (Updated Y)
         if(x < 80) Serial.println("BTN: SCAN");
         else if(x < 160) Serial.println("BTN: DATA");
         else Serial.println("BTN: SAVE");
@@ -215,6 +222,7 @@ void loop() {
 
   if (sniffer.hasHandshake()) {
     sniffer.clearHandshake();
+    handshakes_captured++; // Feeds the global counter
     miPet.xp += 50; 
   }
   if (sniffer.hasDeauth()) {
