@@ -3,14 +3,13 @@
 SDManager::SDManager() {
   isReady = false;
   buffer = NULL;
-  bufPtr = 0;
-  lastFlushTime = 0;
+  head = 0;
+  tail = 0;
   spi = new SPIClass(HSPI);
 }
 
 bool SDManager::begin() {
-  // Task A: Implement Buffer System (inspired by Marauder)
-  // Allocate Buffer
+  // Allocate Ring Buffer
   if (buffer == NULL) {
     buffer = (uint8_t *)malloc(BUF_SIZE);
     if (buffer == NULL) {
@@ -19,12 +18,10 @@ bool SDManager::begin() {
     }
   }
 
-  // Task A: Initialize SD card using HSPI (SCK=18, MISO=19, MOSI=23, CS=5)
-  // Note: HSPI Host is used but mapped to VSPI pins, as VSPI Host is used by TFT/Touch.
+  // Init SPI and SD
   spi->begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
 
-  // Init SD
-  if (!SD.begin(SD_CS, *spi, 40000000)) { // 40MHz for faster writes
+  if (!SD.begin(SD_CS, *spi, 40000000)) {
     Serial.println("[SD] Mount Failed");
     return false;
   }
@@ -57,11 +54,9 @@ String SDManager::getNextFileName() {
 }
 
 void SDManager::openNewPCAP() {
-  if (!isReady)
-    return;
+  if (!isReady) return;
 
-  if (pcapFile)
-    pcapFile.close();
+  if (pcapFile) pcapFile.close();
 
   String fname = getNextFileName();
   pcapFile = SD.open(fname, FILE_WRITE);
@@ -88,24 +83,24 @@ void SDManager::writeGlobalHeader() {
   pcapFile.flush();
 }
 
+// ISR Safe: Copies data to Ring Buffer
 void SDManager::addPacket(uint8_t *packet, uint32_t len) {
-  if (!isReady || !pcapFile)
+  if (!buffer) return;
+
+  uint32_t headerSize = sizeof(PcapPacketHeader);
+  uint32_t totalSize = headerSize + len;
+
+  // Calculate free space
+  // Free space = (tail - head - 1 + BUF_SIZE) % BUF_SIZE
+  // Note: We keep 1 byte empty to distinguish full vs empty (if head==tail)
+  uint32_t freeSpace = (tail - head - 1 + BUF_SIZE) % BUF_SIZE;
+
+  if (totalSize > freeSpace) {
+    // Buffer Overflow - Drop Packet
     return;
-
-  // Task A: Buffer System
-  // Check if packet fits in remaining buffer
-  // Packet needs: Header (16 bytes) + Payload (len)
-  uint32_t required = sizeof(PcapPacketHeader) + len;
-
-  if (bufPtr + required >= BUF_SIZE) {
-    saveBuffer(); // Flush current buffer
-    if (required > BUF_SIZE) {
-      // Packet too big for buffer even when empty? Skip it.
-      return;
-    }
   }
 
-  // Construct Header
+  // Prepare Header
   PcapPacketHeader header;
   unsigned long now = micros();
   header.ts_sec = now / 1000000;
@@ -113,29 +108,68 @@ void SDManager::addPacket(uint8_t *packet, uint32_t len) {
   header.incl_len = len;
   header.orig_len = len;
 
-  // Copy to Buffer
-  memcpy(buffer + bufPtr, &header, sizeof(header));
-  bufPtr += sizeof(header);
-
-  memcpy(buffer + bufPtr, packet, len);
-  bufPtr += len;
-
-  // Auto-flush time check
-  if (millis() - lastFlushTime > FLUSH_INTERVAL && bufPtr > 0) {
-    saveBuffer();
+  // Copy Header
+  // Handle Wrap-around
+  if (head + headerSize <= BUF_SIZE) {
+      memcpy(&buffer[head], &header, headerSize);
+      head += headerSize;
+  } else {
+      // Split copy
+      uint32_t part1 = BUF_SIZE - head;
+      uint32_t part2 = headerSize - part1;
+      memcpy(&buffer[head], &header, part1);
+      memcpy(&buffer[0], ((uint8_t*)&header) + part1, part2);
+      head = part2;
   }
+  if (head == BUF_SIZE) head = 0; // Fix edge case if exact match
+
+  // Copy Payload
+  if (head + len <= BUF_SIZE) {
+      memcpy(&buffer[head], packet, len);
+      head += len;
+  } else {
+      uint32_t part1 = BUF_SIZE - head;
+      uint32_t part2 = len - part1;
+      memcpy(&buffer[head], packet, part1);
+      memcpy(&buffer[0], packet + part1, part2);
+      head = part2;
+  }
+  if (head == BUF_SIZE) head = 0;
 }
 
-void SDManager::saveBuffer() {
-  if (!isReady || !pcapFile || bufPtr == 0)
-    return;
+// Task Safe: Writes data from Ring Buffer to SD
+void SDManager::processBuffer() {
+  if (!isReady || !pcapFile || !buffer) return;
 
-  size_t written = pcapFile.write(buffer, bufPtr);
-  if (written != bufPtr) {
-    Serial.println("[SD] Write Error!");
+  // Check available data
+  // Available = (head - tail + BUF_SIZE) % BUF_SIZE
+  uint32_t available = (head - tail + BUF_SIZE) % BUF_SIZE;
+
+  if (available == 0) return;
+
+  static unsigned long lastFlush = 0;
+  size_t bytesWritten = 0;
+
+  if (tail < head) {
+      // Contiguous
+      bytesWritten = pcapFile.write(&buffer[tail], available);
+      tail += available;
+  } else {
+      // Wrapped
+      uint32_t part1 = BUF_SIZE - tail;
+      uint32_t part2 = head; // remaining from 0
+
+      bytesWritten += pcapFile.write(&buffer[tail], part1);
+      bytesWritten += pcapFile.write(&buffer[0], part2);
+
+      tail = head;
   }
 
-  pcapFile.flush(); // Commit to SD
-  bufPtr = 0;       // Reset buffer
-  lastFlushTime = millis();
+  if (tail == BUF_SIZE) tail = 0; // Should be handled by logic above but for safety
+
+  // Flush periodically or if buffer was fullish
+  if (millis() - lastFlush > 1000) { // Flush every 1 sec
+      pcapFile.flush();
+      lastFlush = millis();
+  }
 }

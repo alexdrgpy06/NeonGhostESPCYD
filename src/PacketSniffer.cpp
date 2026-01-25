@@ -56,7 +56,6 @@ void PacketSniffer::loop() {
       currentChannel = 1;
 
     esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
-    // Serial.printf("[Sniffer] Hop to Channel %d\n", currentChannel);
   }
 }
 
@@ -77,7 +76,7 @@ void PacketSniffer::wifi_promiscuous_rx_cb(void *buf,
   }
 }
 
-// Packet Processor
+// Packet Processor (ISR Context - Must be fast!)
 void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
   packetCount++;
   if (len < 10)
@@ -95,14 +94,18 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     if (subtype == 8) {
       // Beacon
       beaconCount++;
-      // We could parse SSID here later
-      savePacket = true; // Still save beacons for Wireshark mapping
+      // savePacket = true; // Save beacons? Optional, can fill buffer fast.
+      // Let's only save EAPOL and Deauth to save space/bandwidth unless needed.
+      // But prompt said "saving them to an SD Card... similar to ESP32 Marauder".
+      // Marauder saves everything or filters.
+      // Let's save beacons for now but beware of overflow.
+      // Actually, beacons are huge volume. Let's SKIP beacons for PCAP to prioritize Handshakes.
+      savePacket = false;
     } else if (subtype == 12) {
       // Deauthentication
       deauthCount++;
       deauthDetected = true;
       savePacket = true;
-      Serial.println("[Sniffer] DEAUTH DETECTED!");
     }
   }
 
@@ -116,7 +119,6 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
         handshakeCount++;
         handshakeDetected = true; // Sets flag for Task B Game Logic
         savePacket = true;
-        Serial.println("[Sniffer] EAPOL DETECTED!");
         break;
       }
     }

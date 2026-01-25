@@ -7,6 +7,7 @@
 #include "CreatureRenderer.h"
 #include "PacketSniffer.h"
 #include "SDManager.h"
+#include "assets.h"
 
 // --- OBJECTS ---
 TFT_eSPI tft = TFT_eSPI();
@@ -26,9 +27,7 @@ SDManager sdManager;
 
 // --- CONFIGURACIÓN VISUAL ---
 #define C_FONDO 0x0000 // Black
-#define C_GRID  0x0025 // Very dark blue
 #define C_HUD   TFT_CYAN 
-#define C_WARN  TFT_RED
 #define C_NEON  0x07E0 // Bright Green
 
 // --- ESTRUCTURA DE LA ENTIDAD ---
@@ -63,30 +62,42 @@ void cargarProgreso() {
 }
 
 // --- UTILS ---
-void drawGrid() {
-    tft.fillScreen(C_FONDO);
-    for(int i=0; i<240; i+=20) tft.drawFastVLine(i, 0, 320, C_GRID);
-    for(int i=0; i<320; i+=20) tft.drawFastHLine(0, i, 240, C_GRID);
+void drawBackground() {
+    tft.setSwapBytes(true);
+    tft.pushImage(0, 0, 240, 320, img_dashboard);
+    tft.setSwapBytes(false);
 }
 
-void drawCyberButton(int x, int y, int w, int h, const char* label, uint16_t color) {
-    tft.fillRoundRect(x, y, w, h, 6, 0x10A2);
-    tft.drawRoundRect(x, y, w, h, 6, color);
-    
-    tft.setTextFont(4); // Larger Font (Font 4)
-    tft.setTextSize(1);
-    tft.setTextColor(color, 0x10A2);
-    // Adjust Center String Y offset for Font 4
-    tft.drawCentreString(label, x + w/2, y + (h/2) - 12, 4);
+void drawButtons() {
+    tft.setSwapBytes(true);
+    // Button Y position
+    int y = 270;
+    // Spacing
+    int x1 = 30;
+    int x2 = 104;
+    int x3 = 178;
+
+    // Draw Icons (32x32)
+    tft.pushImage(x1, y, 32, 32, icon_scan);
+    tft.pushImage(x2, y, 32, 32, icon_data);
+    tft.pushImage(x3, y, 32, 32, icon_save);
+
+    // Labels
+    tft.setTextFont(2);
+    tft.setTextColor(C_HUD, C_FONDO);
+    tft.drawCentreString("SCAN", x1+16, y+35, 2);
+    tft.drawCentreString("DATA", x2+16, y+35, 2);
+    tft.drawCentreString("SAVE", x3+16, y+35, 2);
+    tft.setSwapBytes(false);
 }
 
-// --- UI LOGIC (Simplified - No Mutex) ---
+// --- UI LOGIC ---
 void updateUI() {
       // 1. STATS BAR (Top)
       tft.fillRect(0, 0, 240, 40, C_FONDO); 
       tft.drawFastHLine(0, 40, 240, C_HUD);
       
-      tft.setTextFont(4); // Switch to Font 4 for visibility
+      tft.setTextFont(4);
       tft.setTextSize(1);
       tft.setTextColor(C_HUD, C_FONDO);
       
@@ -102,17 +113,19 @@ void updateUI() {
       tft.print("/");
       tft.print(miPet.xpNextLevel);
       
-      // Line 2: Status (Centered) - Use Font 2 for status if long, or Font 4 if short
-      tft.setTextFont(2);
+      // Line 2: Status (Centered)
       if(sniffer.hasHandshake()) {
-          tft.setTextColor(TFT_YELLOW, C_FONDO);
-          tft.drawCentreString("! EAPOL CAPTURED !", 120, 30, 2); // Keep Font 2 for long string or ensure it fits
+          tft.setSwapBytes(true);
+          tft.pushImage(20, 50, 200, 50, img_alert_bg); // Overlay alert
+          tft.setSwapBytes(false);
+          tft.setTextColor(TFT_WHITE, TFT_RED);
+          tft.drawCentreString("EAPOL CAPTURED", 120, 65, 4);
       } else if (sniffer.hasDeauth()) {
           tft.setTextColor(TFT_RED, C_FONDO);
-          tft.drawCentreString("JAMMING DETECTED", 120, 30, 2);
+          tft.drawCentreString("JAMMING DETECTED", 120, 50, 2);
       } else {
           tft.setTextColor(0x5555, C_FONDO);
-          tft.drawCentreString("SCANNING...", 120, 30, 2);
+          tft.drawCentreString("SCANNING...", 120, 50, 2);
       }
 
       // 2. CREATURE RENDER
@@ -121,18 +134,18 @@ void updateUI() {
       // 3. PACKET COUNTER
       tft.setTextFont(2);
       tft.setTextColor(0x2222, C_FONDO);
-      tft.setCursor(80, 250);
+      tft.setCursor(80, 240);
       tft.print("PKTS: ");
       tft.print(sniffer.packetCount);
 }
 
 void evolver() {
-  tft.fillScreen(TFT_WHITE); 
-  delay(100);
-  tft.fillScreen(TFT_BLACK);
+  tft.setSwapBytes(true);
+  tft.pushImage(0, 0, 240, 320, img_evolution);
+  tft.setSwapBytes(false);
   
   tft.setTextColor(C_NEON, C_FONDO);
-  tft.setTextFont(4); // Large Font
+  tft.setTextFont(4);
   tft.drawCentreString("UPGRADE", 120, 140, 4);
   delay(2000);
 
@@ -143,12 +156,8 @@ void evolver() {
 
   guardarProgreso();
 
-  drawGrid();
-  // Redraw buttons handled in main setup/loop part? No, redraw here:
-  int btnY = 270; // Moved up to fit larger buttons
-  drawCyberButton(5, btnY, 70, 40, "SCAN", C_HUD);
-  drawCyberButton(85, btnY, 70, 40, "DATA", C_HUD);
-  drawCyberButton(165, btnY, 70, 40, "SAVE", C_HUD);
+  drawBackground();
+  drawButtons();
 }
 
 // --- SNIFFER TASK (Task C: Multitasking) ---
@@ -157,6 +166,11 @@ void snifferTask(void *parameter) {
   sniffer.start();
   while (true) {
     sniffer.loop(); // Handles channel hopping
+
+    // Process SD Buffer (Task Safe)
+    // Moves data from RAM Ring Buffer to SD Card
+    sdManager.processBuffer();
+
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
@@ -193,11 +207,8 @@ void setup() {
   cargarProgreso();
 
   // Initial Draw
-  drawGrid();
-  int btnY = 270; // Moved up
-  drawCyberButton(5, btnY, 70, 40, "SCAN", C_HUD);
-  drawCyberButton(85, btnY, 70, 40, "DATA", C_HUD);
-  drawCyberButton(165, btnY, 70, 40, "SAVE", C_HUD);
+  drawBackground();
+  drawButtons();
 }
 
 void loop() {
@@ -213,7 +224,7 @@ void loop() {
     // VISUAL FEEDBACK (Hardware Test)
     tft.fillCircle(x, y, 3, TFT_WHITE);
     
-    if(y > 270) { // Button Area (Updated Y)
+    if(y > 270) {
         if(x < 80) Serial.println("BTN: SCAN");
         else if(x < 160) Serial.println("BTN: DATA");
         else Serial.println("BTN: SAVE");

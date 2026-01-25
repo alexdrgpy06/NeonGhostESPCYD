@@ -24,11 +24,11 @@ public:
   bool hasDeauth();
   void clearDeauth();
 
-  // Stats
-  uint32_t packetCount;
-  uint32_t deauthCount;
-  uint32_t beaconCount;
-  uint32_t handshakeCount;
+  // Stats (Volatile for thread safety)
+  volatile uint32_t packetCount;
+  volatile uint32_t deauthCount;
+  volatile uint32_t beaconCount;
+  volatile uint32_t handshakeCount;
 
 private:
   SDManager *sdManager;
