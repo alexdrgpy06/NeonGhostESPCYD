@@ -17,6 +17,10 @@ private:
   TFT_eSPI *_tft;
   TFT_eSprite *spr; // Sprite for double buffering
   
+  // Blink State
+  unsigned long lastBlinkTime;
+  bool isBlinking;
+
   // Cyberpunk Palette
   const uint16_t PALETTE[5] = {TFT_GREEN, TFT_CYAN, TFT_MAGENTA, TFT_YELLOW, 0xFD20}; // 0xFD20 is Orange
 };

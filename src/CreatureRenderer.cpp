@@ -5,10 +5,23 @@ CreatureRenderer::CreatureRenderer(TFT_eSPI *tft) {
     spr = new TFT_eSprite(tft);
     // Create a sprite big enough for the creature (128x128)
     spr->createSprite(128, 128);
+
+    lastBlinkTime = 0;
+    isBlinking = false;
 }
 
 void CreatureRenderer::draw(int x, int y, unsigned long seed, int level) {
-    // Reset RNG with seed
+    // Handle Blinking Logic (Time based, independent of seed)
+    unsigned long now = millis();
+    if (!isBlinking && (now - lastBlinkTime > (unsigned long)random(2000, 5000))) {
+        isBlinking = true;
+        lastBlinkTime = now;
+    } else if (isBlinking && (now - lastBlinkTime > 200)) {
+        isBlinking = false;
+        lastBlinkTime = now;
+    }
+
+    // Reset RNG with seed for Body Generation
     randomSeed(seed);
     
     // Clear sprite
@@ -17,12 +30,10 @@ void CreatureRenderer::draw(int x, int y, unsigned long seed, int level) {
     // Aesthetic Colors
     uint16_t cPrimary = PALETTE[random(0, 5)];
     uint16_t cSecondary = PALETTE[random(0, 5)];
-    uint16_t cGlow = TFT_WHITE;
     
     // --- GENERATIVE PIXEL ART (12x12 Grid mirrored to 24x24) ---
     // We simulate a 24x24 pixel grid, scaled up by 'scale' factor.
     int scale = 4; 
-    int gridSize = 12; // Half-width
     
     int spriteW = 24 * scale;
     int spriteH = 24 * scale;
@@ -31,15 +42,19 @@ void CreatureRenderer::draw(int x, int y, unsigned long seed, int level) {
 
     for (int py = 0; py < 24; py++) {
         for (int px = 0; px < 12; px++) {
-            // Cellular Automata / Noise Logic
-            // Probability increases towards center
-            int prob = 40 + (px * 5); 
-            if (py > 8 && py < 16) prob += 20; // Dense core
+            // Improved Ghost Logic
+            // Probability increases towards center (px -> 12)
+            // Probability decreases at very bottom (Floating effect)
+            int prob = 30 + (px * 6);
             
+            if (py < 4) prob -= 20; // Rounder head
+            if (py > 8 && py < 18) prob += 30; // Dense core/body
+            if (py >= 20) prob -= 40; // Tattered bottom (floating)
+
             bool pixelOn = (random(0, 100) < prob);
             
             // Hardcoded "Face" area clearing
-            if (py >= 8 && py <= 12 && px < 4) pixelOn = false; 
+            if (py >= 9 && py <= 13 && px < 5) pixelOn = false;
 
             if (pixelOn) {
                 // Color Logic
@@ -61,12 +76,21 @@ void CreatureRenderer::draw(int x, int y, unsigned long seed, int level) {
     // --- EYES (The Soul) ---
     int eyeSize = scale * 2;
     int eyeY = offsetY + (10 * scale);
-    int eyeX_L = offsetX + (9 * scale);
-    int eyeX_R = offsetX + (13 * scale); // 12 + 1
+    int eyeX_L = offsetX + (8 * scale);
+    int eyeX_R = offsetX + (13 * scale);
        
-    // Eye Glow
-    spr->fillRect(eyeX_L, eyeY, eyeSize, eyeSize, TFT_RED);
-    spr->fillRect(eyeX_R, eyeY, eyeSize, eyeSize, TFT_RED);
+    // Eye Animation
+    uint16_t eyeColor = (level > 5) ? TFT_RED : TFT_CYAN;
+
+    if (isBlinking) {
+        // Closed Eyes (Line)
+        spr->drawFastHLine(eyeX_L, eyeY + scale, eyeSize, eyeColor);
+        spr->drawFastHLine(eyeX_R, eyeY + scale, eyeSize, eyeColor);
+    } else {
+        // Open Eyes (Rect)
+        spr->fillRect(eyeX_L, eyeY, eyeSize, eyeSize, eyeColor);
+        spr->fillRect(eyeX_R, eyeY, eyeSize, eyeSize, eyeColor);
+    }
     
     // --- LEVEL GLITCH ---
     // If level is high, corrupt some pixels
