@@ -12,7 +12,7 @@
 // --- OBJECTS ---
 TFT_eSPI tft = TFT_eSPI();
 
-// Global variable for Task B/C integration (Phase 2)
+// Global variable for Task B/C integration
 volatile uint32_t handshakes_captured = 0;
 
 // TOUCH CONFIG
@@ -29,6 +29,7 @@ SDManager sdManager;
 #define C_FONDO 0x0000 // Black
 #define C_HUD   TFT_CYAN 
 #define C_NEON  0x07E0 // Bright Green
+#define C_ALERT 0xF800 // Red
 
 // --- ESTRUCTURA DE LA ENTIDAD ---
 struct Daemon {
@@ -62,16 +63,35 @@ void cargarProgreso() {
 }
 
 // --- UTILS ---
-void drawBackground() {
-    tft.setSwapBytes(true);
-    tft.pushImage(0, 0, 240, 320, img_dashboard);
-    tft.setSwapBytes(false);
+void drawCyberpunkGrid() {
+    tft.fillScreen(C_FONDO);
+
+    // Draw Grid
+    tft.setTextColor(0x0040, C_FONDO); // Dark Green
+    for (int i = 0; i < 320; i += 40) {
+        tft.drawFastHLine(0, i, 240, 0x0020);
+    }
+    for (int i = 0; i < 240; i += 40) {
+        tft.drawFastVLine(i, 0, 320, 0x0020);
+    }
+}
+
+void drawDashboardStatic() {
+    drawCyberpunkGrid();
+
+    // Top Bar
+    tft.fillRect(0, 0, 240, 30, 0x0000);
+    tft.drawFastHLine(0, 30, 240, C_HUD);
+
+    // Bottom Bar
+    tft.fillRect(0, 270, 240, 50, 0x0000);
+    tft.drawFastHLine(0, 270, 240, C_HUD);
 }
 
 void drawButtons() {
     tft.setSwapBytes(true);
     // Button Y position
-    int y = 270;
+    int y = 280;
     // Spacing
     int x1 = 30;
     int x2 = 104;
@@ -83,70 +103,65 @@ void drawButtons() {
     tft.pushImage(x3, y, 32, 32, icon_save);
 
     // Labels
-    tft.setTextFont(2);
+    tft.setTextFont(1);
     tft.setTextColor(C_HUD, C_FONDO);
-    tft.drawCentreString("SCAN", x1+16, y+35, 2);
-    tft.drawCentreString("DATA", x2+16, y+35, 2);
-    tft.drawCentreString("SAVE", x3+16, y+35, 2);
+    tft.drawCentreString("SCAN", x1+16, y-10, 1);
+    tft.drawCentreString("DATA", x2+16, y-10, 1);
+    tft.drawCentreString("SAVE", x3+16, y-10, 1);
     tft.setSwapBytes(false);
 }
 
 // --- UI LOGIC ---
 void updateUI() {
-      // 1. STATS BAR (Top)
-      tft.fillRect(0, 0, 240, 40, C_FONDO); 
-      tft.drawFastHLine(0, 40, 240, C_HUD);
+      tft.setTextFont(2);
       
-      tft.setTextFont(4);
-      tft.setTextSize(1);
+      // 1. STATS (Top Bar)
       tft.setTextColor(C_HUD, C_FONDO);
-      
-      // Line 1: LVL
-      tft.setCursor(10, 8);
-      tft.print("LVL ");
+      tft.setCursor(5, 5);
+      tft.print("DAEMON: v");
       tft.print(miPet.nivel);
-      
-      // Line 1: XP (Right)
-      tft.setCursor(130, 8);
-      tft.print("XP ");
-      tft.print(miPet.xp);
-      tft.print("/");
-      tft.print(miPet.xpNextLevel);
-      
-      // Line 2: Status (Centered)
+      tft.print(".0");
+
+      // XP Bar
+      int barWidth = 100;
+      int fill = map(miPet.xp, 0, miPet.xpNextLevel, 0, barWidth);
+      tft.drawRect(130, 8, barWidth, 10, C_HUD);
+      tft.fillRect(132, 10, fill - 4, 6, C_NEON);
+
+      // 2. ALERTS
       if(sniffer.hasHandshake()) {
-          tft.setSwapBytes(true);
-          tft.pushImage(20, 50, 200, 50, img_alert_bg); // Overlay alert
-          tft.setSwapBytes(false);
-          tft.setTextColor(TFT_WHITE, TFT_RED);
-          tft.drawCentreString("EAPOL CAPTURED", 120, 65, 4);
+          tft.setTextColor(C_FONDO, C_ALERT);
+          tft.setTextFont(4);
+          tft.drawCentreString("! EAPOL !", 120, 60, 4);
       } else if (sniffer.hasDeauth()) {
-          tft.setTextColor(TFT_RED, C_FONDO);
-          tft.drawCentreString("JAMMING DETECTED", 120, 50, 2);
+          tft.setTextColor(C_ALERT, C_FONDO);
+          tft.drawCentreString("JAMMING...", 120, 50, 2);
       } else {
-          tft.setTextColor(0x5555, C_FONDO);
-          tft.drawCentreString("SCANNING...", 120, 50, 2);
+          // Clear area
+          tft.fillRect(60, 50, 120, 30, C_FONDO);
       }
 
-      // 2. CREATURE RENDER
+      // 3. CREATURE
       renderer.draw(120, 160, miPet.dnaSeed, miPet.nivel);
       
-      // 3. PACKET COUNTER
-      tft.setTextFont(2);
-      tft.setTextColor(0x2222, C_FONDO);
-      tft.setCursor(80, 240);
-      tft.print("PKTS: ");
+      // 4. PACKET STREAM
+      tft.setTextFont(1);
+      tft.setTextColor(0x5555, C_FONDO);
+      tft.setCursor(10, 250);
+      tft.print("RF_IN: ");
       tft.print(sniffer.packetCount);
+      tft.print(" PKTS | CH: ");
+      tft.print(sniffer.currentChannel);
 }
 
 void evolver() {
-  tft.setSwapBytes(true);
-  tft.pushImage(0, 0, 240, 320, img_evolution);
-  tft.setSwapBytes(false);
-  
+  tft.fillScreen(C_FONDO);
   tft.setTextColor(C_NEON, C_FONDO);
-  tft.setTextFont(4);
-  tft.drawCentreString("UPGRADE", 120, 140, 4);
+  tft.drawCentreString("EVOLUTION", 120, 140, 4);
+  delay(1000);
+
+  tft.setTextColor(TFT_WHITE, C_FONDO);
+  tft.drawCentreString("SYSTEM UPGRADE", 120, 180, 2);
   delay(2000);
 
   miPet.dnaSeed = esp_random();
@@ -156,21 +171,16 @@ void evolver() {
 
   guardarProgreso();
 
-  drawBackground();
+  drawDashboardStatic();
   drawButtons();
 }
 
-// --- SNIFFER TASK (Task C: Multitasking) ---
-// Runs on Core 0 to prevent UI blocking
+// --- SNIFFER TASK (Core 0) ---
 void snifferTask(void *parameter) {
   sniffer.start();
   while (true) {
-    sniffer.loop(); // Handles channel hopping
-
-    // Process SD Buffer (Task Safe)
-    // Moves data from RAM Ring Buffer to SD Card
-    sdManager.processBuffer();
-
+    sniffer.loop();
+    sdManager.processBuffer(); // Move captured packets to SD
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
@@ -183,7 +193,7 @@ void setup() {
   pinMode(21, OUTPUT);
   digitalWrite(21, HIGH);
 
-  // TOUCH SPI (Manual)
+  // TOUCH
   SPI.begin(14, 12, 13, 33); 
   ts.begin(); 
   ts.setRotation(0); 
@@ -191,49 +201,68 @@ void setup() {
   // TFT
   tft.begin();
   tft.setRotation(0); 
-  tft.invertDisplay(1); // HARDWARE FIX: Invert colors
+  // REMOVED: tft.invertDisplay(1); -> Fixes white screen issue
 
-  // SD
+  // SD Check
+  drawDashboardStatic();
+  tft.setTextFont(2);
+  tft.setTextColor(TFT_WHITE, C_FONDO);
+  tft.drawCentreString("INIT SD...", 120, 160, 2);
+
   if (!sdManager.begin()) {
-    tft.fillScreen(TFT_RED);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawCentreString("NO SD", 120, 160, 4);
+    tft.setTextColor(C_ALERT, C_FONDO);
+    tft.drawCentreString("SD ERROR", 120, 180, 2);
     delay(1000);
+  } else {
+    tft.setTextColor(C_NEON, C_FONDO);
+    tft.drawCentreString("SD MOUNTED", 120, 180, 2);
+    delay(500);
   }
   
+  // Clear Center
+  tft.fillRect(40, 140, 160, 80, C_FONDO);
+
   sniffer.init(&sdManager);
+
+  // Start Sniffer Task on Core 0
   xTaskCreatePinnedToCore(snifferTask, "Sniffer", 10000, NULL, 1, NULL, 0);
 
   cargarProgreso();
 
-  // Initial Draw
-  drawBackground();
+  // Initial UI Draw
+  drawDashboardStatic();
   drawButtons();
 }
 
 void loop() {
-  // Direct Touch Handling (No debouncing for test)
+  // Touch Handling
   if (ts.touched()) {
     TS_Point p = ts.getPoint();
-    // Invert X/Y map for Portrait
-    // Raw X: ~3800(left) to ~300(right)
-    // Raw Y: ~3800(top) to ~300(bottom)
+    // Calibration for 2.8" CYD
     int y = map(p.x, 3800, 200, 0, 320); 
     int x = map(p.y, 3800, 200, 0, 240);
     
-    // VISUAL FEEDBACK (Hardware Test)
-    tft.fillCircle(x, y, 3, TFT_WHITE);
-    
     if(y > 270) {
-        if(x < 80) Serial.println("BTN: SCAN");
-        else if(x < 160) Serial.println("BTN: DATA");
-        else Serial.println("BTN: SAVE");
+        if(x < 80) {
+           Serial.println("CMD: SCAN TOGGLE");
+           // Implement toggle logic if needed
+        }
+        else if(x < 160) Serial.println("CMD: VIEW DATA");
+        else {
+           Serial.println("CMD: NEW CAPTURE");
+           sdManager.openNewPCAP();
+           tft.setTextColor(C_NEON, C_FONDO);
+           tft.drawCentreString("FILE SAVED", 120, 120, 2);
+           delay(500);
+           tft.fillRect(0, 110, 240, 30, C_FONDO);
+        }
     }
   }
 
+  // Game Logic
   if (sniffer.hasHandshake()) {
     sniffer.clearHandshake();
-    handshakes_captured++; // Feeds the global counter
+    handshakes_captured++;
     miPet.xp += 50; 
   }
   if (sniffer.hasDeauth()) {
@@ -246,5 +275,5 @@ void loop() {
   }
 
   updateUI();
-  delay(33); 
+  delay(50); // 20 FPS UI Update
 }
