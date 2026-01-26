@@ -94,14 +94,17 @@ struct GameState {
 } game;
 
 // Evolution
-const char* STAGE_NAMES[] = {"SPARK", "BABY", "TEEN", "SPECTER", "DEMON"};
+const char* STAGE_NAMES[] = {"SPARK", "BABY", "TEEN", "SPECTER", "REAPER", "GLITCH", "DEMON", "GOD"};
 
 int getStage(int level) {
     if (level <= 3) return 0;
     if (level <= 6) return 1;
     if (level <= 9) return 2;
     if (level <= 14) return 3;
-    return 4;
+    if (level <= 19) return 4;
+    if (level <= 24) return 5;
+    if (level <= 29) return 6;
+    return 7;
 }
 
 // XP rewards
