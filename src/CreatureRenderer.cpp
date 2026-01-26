@@ -30,7 +30,10 @@ int CreatureRenderer::getStageFromLevel(int level) {
     else if (level <= 6) return 1;
     else if (level <= 9) return 2;
     else if (level <= 14) return 3;
-    else return 4;
+    else if (level <= 19) return 4;
+    else if (level <= 24) return 5;
+    else if (level <= 29) return 6;
+    else return 7;
 }
 
 void CreatureRenderer::triggerAnimation(AnimState anim, int duration) {
