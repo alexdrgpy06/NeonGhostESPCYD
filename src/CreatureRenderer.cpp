@@ -109,6 +109,12 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
             animOffsetY = (int)(sin(animPhase * 4) * 8);
             animOffsetX = (int)(cos(animPhase * 3) * 5);
             break;
+
+        case ANIM_ATTACK:
+            // Violent shake
+            animOffsetX = (int)(random(-4, 5));
+            animOffsetY = (int)(random(-4, 5));
+            break;
     }
     
     // Blinking
@@ -197,6 +203,28 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
             int px = random(0, 128);
             int py = random(0, 50);
             spr->fillCircle(px, py, 2, color);
+        }
+    }
+
+    // Attack animation: Lightning bolts
+    if (currentAnim == ANIM_ATTACK) {
+        // Draw random lightning bolts from center
+        int centerX = drawX + 48; // 24*scale/2
+        int centerY = drawY + 48;
+        for (int i = 0; i < 6; i++) {
+            int len = random(30, 60);
+            float angle = random(0, 628) / 100.0;
+            int ex = centerX + (int)(cos(angle) * len);
+            int ey = centerY + (int)(sin(angle) * len);
+            spr->drawLine(centerX, centerY, ex, ey, TFT_YELLOW);
+            // Draw a second segment
+            int ex2 = ex + random(-10, 11);
+            int ey2 = ey + random(-10, 11);
+            spr->drawLine(ex, ey, ex2, ey2, TFT_WHITE);
+        }
+        // Flash effect
+        if (random(0, 2) == 0) {
+            spr->drawRect(0, 0, 128, 128, TFT_WHITE);
         }
     }
     

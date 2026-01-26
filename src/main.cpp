@@ -129,6 +129,8 @@ void loadGame() {
     game.xp = prefs.getInt("xp", 0);
     game.xpMax = game.level * 50 + 50;
     prefs.end();
+
+    wifiSniffer.setTechLevel(game.level);
 }
 
 void resetGame() {
@@ -163,6 +165,9 @@ void addXP(int amount, String source) {
         game.xpMax = game.level * 50 + 50;
         int newStage = getStage(game.level);
         
+        // Update sniffer capabilities
+        wifiSniffer.setTechLevel(game.level);
+
         if (newStage != oldStage) {
             setStatus("EVOLUTION!", STAGE_NAMES[newStage], C_MAGENTA);
             creature.triggerAnimation(ANIM_EVOLVING, 2000);
@@ -618,6 +623,7 @@ void setup() {
     
     // Load game
     loadGame();
+    wifiSniffer.setTechLevel(game.level); // Ensure it's set on boot
     
     // Draw UI
     drawBackground();
@@ -657,6 +663,11 @@ void loop() {
             case EVT_PROBE:
                 addXP(XP_PROBE, "PROBE");
                 creature.triggerAnimation(ANIM_EATING, 400);
+                break;
+            case EVT_ATTACK:
+                // No XP for attacking (it costs energy?), but maybe XP for the result (Handshake)
+                setStatus("ATTACKING!", details, C_RED);
+                creature.triggerAnimation(ANIM_ATTACK, 800);
                 break;
             default: break;
         }
