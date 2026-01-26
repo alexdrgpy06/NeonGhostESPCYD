@@ -32,7 +32,8 @@ enum CaptureEvent {
     EVT_HANDSHAKE,
     EVT_DEAUTH,
     EVT_PROBE,
-    EVT_NEW_NETWORK
+    EVT_NEW_NETWORK,
+    EVT_ATTACK
 };
 
 class PacketSniffer {
@@ -43,6 +44,9 @@ public:
     void stop();
     void loop();
     
+    void setTechLevel(int level);
+    void sendDeauth(uint8_t* bssid, uint8_t* client);
+
     // Event system
     CaptureEvent getNextEvent();
     String getEventDetails();
@@ -68,7 +72,9 @@ public:
 private:
     SDManager *sdManager;
     unsigned long lastChannelHop;
+    unsigned long lastAttack;
     bool isRunning;
+    int techLevel;
     
     // Event queue
     volatile CaptureEvent pendingEvent;

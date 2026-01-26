@@ -9,7 +9,8 @@ enum AnimState {
     ANIM_EATING,    // Mouth open, chomping
     ANIM_HAPPY,     // Bouncing up and down
     ANIM_ALERT,     // Shaking side to side
-    ANIM_EVOLVING   // Spinning/glitching
+    ANIM_EVOLVING,  // Spinning/glitching
+    ANIM_ATTACK     // Shockwave/Zap
 };
 
 class CreatureRenderer {
