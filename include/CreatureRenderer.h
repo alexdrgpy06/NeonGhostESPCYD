@@ -1,28 +1,54 @@
 #ifndef CREATURE_RENDERER_H
 #define CREATURE_RENDERER_H
 
-#include <Arduino.h>
 #include <TFT_eSPI.h>
 
-#ifndef TFT_YELLOW
-#define TFT_YELLOW 0xFFE0
-#endif
+// Animation states
+enum AnimState {
+    ANIM_IDLE,      // Normal floating
+    ANIM_EATING,    // Mouth open, chomping
+    ANIM_HAPPY,     // Bouncing up and down
+    ANIM_ALERT,     // Shaking side to side
+    ANIM_EVOLVING   // Spinning/glitching
+};
 
 class CreatureRenderer {
 public:
-  CreatureRenderer(TFT_eSPI *tft);
-  void draw(int x, int y, unsigned long seed, int level);
+    enum EvolutionStage { BABY, TEEN, ADULT };
+    
+    CreatureRenderer(TFT_eSPI *tft);
+    
+    // Main draw function
+    void draw(int centerX, int centerY, int level, EvolutionStage stage, int mood = 0);
+    
+    // Trigger animations
+    void triggerAnimation(AnimState anim, int duration = 1000);
+    
+    // Get stage from level
+    int getStageFromLevel(int level);
 
 private:
-  TFT_eSPI *_tft;
-  TFT_eSprite *spr; // Sprite for double buffering
-  
-  // Blink State
-  unsigned long lastBlinkTime;
-  bool isBlinking;
-
-  // Cyberpunk Palette
-  const uint16_t PALETTE[5] = {TFT_GREEN, TFT_CYAN, TFT_MAGENTA, TFT_YELLOW, 0xFD20}; // 0xFD20 is Orange
+    TFT_eSPI *_tft;
+    TFT_eSprite *spr;
+    
+    // Animation state
+    AnimState currentAnim;
+    unsigned long animStart;
+    int animDuration;
+    
+    // Position (for wandering)
+    float posX, posY;      // Current position offset
+    float targetX, targetY; // Target position
+    float velX, velY;       // Velocity
+    unsigned long lastMove;
+    
+    // Blinking
+    unsigned long lastBlinkTime;
+    bool isBlinking;
+    
+    // Helpers
+    void updatePosition();
+    void drawSprite(int x, int y, const uint8_t* sprite, uint16_t color, int scale);
 };
 
 #endif

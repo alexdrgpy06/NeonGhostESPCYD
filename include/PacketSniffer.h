@@ -6,46 +6,92 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 
-// Events
-typedef enum { SNIFFER_EVENT_NONE, SNIFFER_EVENT_HANDSHAKE } SnifferEvent;
+// Maximum tracked networks/devices
+#define MAX_NETWORKS 64
+#define MAX_PROBES 32
+
+// Network info structure
+struct NetworkInfo {
+    uint8_t bssid[6];
+    char ssid[33];
+    int8_t rssi;
+    uint8_t channel;
+    bool hasHandshake;
+};
+
+// Probe request structure
+struct ProbeInfo {
+    uint8_t mac[6];
+    char ssid[33];
+    unsigned long timestamp;
+};
+
+// Capture event types
+enum CaptureEvent {
+    EVT_NONE = 0,
+    EVT_HANDSHAKE,
+    EVT_DEAUTH,
+    EVT_PROBE,
+    EVT_NEW_NETWORK
+};
 
 class PacketSniffer {
 public:
-  PacketSniffer();
-  void init(SDManager *sd);
-  void start();
-  void stop();
-  void loop(); // For channel hopping logic
-
-  // Event Flags (Read & Clear)
-  bool hasHandshake();
-  void clearHandshake();
-
-  bool hasDeauth();
-  void clearDeauth();
-
-  // Stats (Volatile for thread safety)
-  volatile uint32_t packetCount;
-  volatile uint32_t deauthCount;
-  volatile uint32_t beaconCount;
-  volatile uint32_t handshakeCount;
+    PacketSniffer();
+    void init(SDManager *sd);
+    void start();
+    void stop();
+    void loop();
+    
+    // Event system
+    CaptureEvent getNextEvent();
+    String getEventDetails();
+    
+    // Network list
+    int getNetworkCount();
+    NetworkInfo* getNetwork(int idx);
+    
+    // Stats
+    volatile uint32_t packetCount;
+    volatile uint32_t deauthCount;
+    volatile uint32_t beaconCount;
+    volatile uint32_t handshakeCount;
+    volatile uint32_t probeCount;
+    volatile uint8_t currentChannel;
+    
+    // Legacy flags (for backwards compat)
+    bool hasHandshake();
+    void clearHandshake();
+    bool hasDeauth();
+    void clearDeauth();
 
 private:
-  SDManager *sdManager;
-  uint8_t currentChannel;
-  unsigned long lastChannelHop;
-  bool isRunning;
-
-  // Handshake Flag (Volatile for ISR safety)
-  volatile bool handshakeDetected;
-  volatile bool deauthDetected;
-
-  // Static Callback Wrapper
-  static void wifi_promiscuous_rx_cb(void *buf,
-                                     wifi_promiscuous_pkt_type_t type);
-
-  // Instance Processor
-  void processPacket(uint8_t *packet, uint16_t len);
+    SDManager *sdManager;
+    unsigned long lastChannelHop;
+    bool isRunning;
+    
+    // Event queue
+    volatile CaptureEvent pendingEvent;
+    String eventDetails;
+    
+    // Tracking
+    NetworkInfo networks[MAX_NETWORKS];
+    int networkCount;
+    ProbeInfo probes[MAX_PROBES];
+    int probeCount_arr;
+    
+    // Flags
+    volatile bool handshakeDetected;
+    volatile bool deauthDetected;
+    
+    // Helpers
+    int findNetwork(uint8_t* bssid);
+    int addNetwork(uint8_t* bssid, char* ssid, int8_t rssi, uint8_t ch);
+    void parseBeacon(uint8_t* packet, uint16_t len);
+    void parseProbe(uint8_t* packet, uint16_t len);
+    
+    static void wifi_promiscuous_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type);
+    void processPacket(uint8_t *packet, uint16_t len);
 };
 
 #endif
