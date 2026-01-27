@@ -87,9 +87,15 @@ struct GameState {
     
     bool inListView = false;
     bool inMenuView = false;
+    bool inAttackMenu = false;
+    bool isAttacking = false;
+    String currentAttackName = "";
+    unsigned long attackEndTime = 0;
+
     bool showingWifi = true;
     int listScroll = 0;
     int menuScroll = 0;
+    int attackScroll = 0;
     
     // Ghost position (free movement)
     float ghostX = 120;
@@ -132,15 +138,15 @@ struct Ability {
 };
 
 Ability abilities[] = {
-    {"Probe Sniff", 0, 3, 8000, 0},     // SPARK
+    {"Probe Flood", 0, 5, 8000, 0},     // SPARK (Updated)
     {"BLE Sniff", 1, 3, 10000, 0},      // BYTE
-    {"AP Spam", 0, 5, 12000, 0},        // GHOST
+    {"AP Spam", 0, 10, 12000, 0},       // GHOST
     {"Device Track", 1, 5, 15000, 0},   // SPECTER
-    {"Deauth Attack", 0, 10, 18000, 0}, // PHANTOM (was Detect)
+    {"Deauth Attack", 0, 15, 18000, 0}, // PHANTOM (was Detect)
     {"Swift Pair", 1, 8, 20000, 0},     // WRAITH
     {"Handshake Cap", 0, 10, 25000, 0}, // SHADE
     {"Sour Apple", 1, 10, 25000, 0},    // REVENANT
-    {"Rick Roll", 0, 12, 30000, 0},     // BANSHEE (was PMKID Grab)
+    {"Rick Roll", 0, 20, 30000, 0},     // BANSHEE (was PMKID Grab)
     {"AirTag Spam", 1, 12, 30000, 0},   // LICH
     {"BLE Flood", 1, 15, 35000, 0},     // POLTERGEIST
     {"Samsung Spam", 1, 15, 35000, 0},  // VOID (was Beacon Spam)
@@ -191,6 +197,7 @@ void processAbilities() {
             if (strcmp(a->name, "AP Spam") == 0) wifiSniffer.beaconSpam();
             else if (strcmp(a->name, "Rick Roll") == 0) wifiSniffer.rickRoll();
             else if (strcmp(a->name, "Deauth Attack") == 0) wifiSniffer.deauthAttack();
+            else if (strcmp(a->name, "Probe Flood") == 0) wifiSniffer.probeFlood();
             
         } 
         // BLE Attack
@@ -240,6 +247,8 @@ void drawBackground() {
 }
 
 void drawButtons() {
+    if (game.isAttacking) return; // Hide buttons during attack
+
     uint16_t btnColor = petStats.getStageColor();
     int x1 = 15, x2 = 85, x3 = 155;
     
@@ -564,6 +573,192 @@ void drawBleList() {
 }
 
 // =============================================================================
+// ATTACK MENU & EXECUTION
+// =============================================================================
+void drawAttackMenu() {
+    tft.fillScreen(C_BG);
+
+    // Header
+    tft.fillRect(0, 0, 240, 40, C_RED);
+    tft.setTextColor(C_WHITE, C_RED);
+    tft.setTextSize(2);
+    tft.setCursor(60, 12);
+    tft.print("ARSENAL");
+
+    // List
+    int y = 50;
+    int startIdx = game.attackScroll;
+    int maxItems = 6;
+
+    int stage = petStats.stats.stage;
+
+    for (int i = 0; i < maxItems && (startIdx + i) < ABILITY_COUNT; i++) {
+        int idx = startIdx + i;
+        Ability* a = &abilities[idx];
+        bool isUnlocked = (idx <= stage);
+        bool canAfford = isUnlocked && (petStats.stats.mp >= a->mpCost);
+
+        uint16_t color = isUnlocked ? (canAfford ? C_GREEN : C_RED) : C_GREY;
+
+        // Background strip for selection
+        if (i % 2 == 0) tft.fillRect(0, y - 5, 240, 35, C_DARK);
+
+        tft.setTextColor(color, (i % 2 == 0) ? C_DARK : C_BG);
+        tft.setTextSize(1);
+        tft.setCursor(10, y);
+        tft.print(a->name);
+
+        if (isUnlocked) {
+            tft.setCursor(180, y);
+            tft.print("MP ");
+            tft.print(a->mpCost);
+        } else {
+            tft.setCursor(180, y);
+            tft.print("LOCKED");
+        }
+
+        y += 35;
+    }
+
+    // Back Button
+    tft.fillRect(0, 280, 240, 40, C_PANEL);
+    tft.drawRoundRect(80, 285, 80, 30, 4, C_WHITE);
+    tft.setTextColor(C_WHITE, C_PANEL);
+    tft.setCursor(105, 293);
+    tft.print("BACK");
+
+    // Scroll indicators
+    if (game.attackScroll > 0) {
+        tft.fillTriangle(220, 60, 230, 70, 210, 70, C_GREEN);
+    }
+    if (game.attackScroll < ABILITY_COUNT - maxItems) {
+        tft.fillTriangle(220, 260, 230, 250, 210, 250, C_GREEN);
+    }
+}
+
+void drawAttackExecution() {
+    tft.fillScreen(C_BG);
+
+    // Header
+    tft.fillRect(0, 0, 240, 50, C_RED);
+    tft.setTextColor(C_WHITE, C_RED);
+    tft.setTextSize(2);
+    tft.setCursor(40, 18);
+    tft.print("ATTACKING");
+
+    // Info
+    tft.setTextColor(C_GREEN, C_BG);
+    tft.setTextSize(2);
+    tft.setCursor(20, 80);
+    tft.print(game.currentAttackName);
+
+    // Animation/Progress
+    unsigned long now = millis();
+    long remaining = game.attackEndTime - now;
+    if (remaining < 0) remaining = 0;
+
+    // Bar
+    int barW = 200;
+    int fillW = map(remaining, 0, 10000, 0, barW); // Assuming ~10s avg, but map visually works
+    if (fillW > barW) fillW = barW;
+
+    tft.drawRect(20, 150, barW, 20, C_WHITE);
+    tft.fillRect(20, 150, fillW, 20, C_RED);
+
+    // Random Matrix Text
+    tft.setTextSize(1);
+    tft.setTextColor(C_GREEN, C_BG);
+    tft.setCursor(20, 200);
+    if (random(0, 5) == 0) {
+        tft.print("Injecting packets...   ");
+    } else if (random(0, 5) == 1) {
+        tft.print("Flooding buffers...    ");
+    } else {
+        tft.print("Target locked...       ");
+    }
+
+    // Do not interrupt message
+    tft.setTextColor(C_GREY, C_BG);
+    tft.setCursor(40, 280);
+    tft.print("DO NOT INTERRUPT");
+}
+
+void handleAttackMenuTouch(int tx, int ty) {
+    // Back button
+    if (ty > 280 && tx > 80 && tx < 160) {
+        game.inAttackMenu = false;
+        drawBackground();
+        return;
+    }
+
+    // List selection
+    if (ty >= 45 && ty < 260) {
+        int idx = (ty - 45) / 35;
+        int realIdx = game.attackScroll + idx;
+
+        if (realIdx >= 0 && realIdx < ABILITY_COUNT) {
+            Ability* a = &abilities[realIdx];
+            int stage = petStats.stats.stage;
+
+            if (realIdx <= stage && petStats.stats.mp >= a->mpCost) {
+                // Execute!
+                game.inAttackMenu = false;
+                game.isAttacking = true;
+                game.currentAttackName = a->name;
+
+                // Calculate duration - default 10s, extend based on ability
+                int duration = 10000;
+                if (strstr(a->name, "Rick") != NULL) duration = 15000;
+                else if (strstr(a->name, "Flood") != NULL) duration = 10000;
+                else if (strstr(a->name, "Deauth") != NULL) duration = 10000;
+                else duration = 5000; // Shorter for simple scans
+
+                game.attackEndTime = millis() + duration;
+
+                petStats.stats.mp -= a->mpCost;
+
+                // Trigger actual attack
+                if (a->type == 0) { // WiFi
+                    if (strcmp(a->name, "AP Spam") == 0) wifiSniffer.beaconSpam();
+                    else if (strcmp(a->name, "Rick Roll") == 0) wifiSniffer.rickRoll();
+                    else if (strcmp(a->name, "Deauth Attack") == 0) wifiSniffer.deauthAttack();
+                    else if (strcmp(a->name, "Probe Flood") == 0) wifiSniffer.probeFlood();
+                    else {
+                        // Generic/Scan
+                         creature.triggerAnimation(ANIM_SCANNING, duration);
+                    }
+                } else { // BLE
+                    // For BLE, we just run the scan/spam visually for now as the BLEScanner is separate
+                     creature.triggerAnimation(ANIM_HACKING, duration);
+                }
+
+                // Initial draw of execution screen
+                drawAttackExecution();
+            } else {
+                // Locked or no MP
+                tft.fillRect(0, 0, 240, 40, C_GREY);
+                tft.setTextColor(C_WHITE, C_GREY);
+                tft.setCursor(60, 12);
+                tft.print("NO MANA / LOCKED");
+                delay(500);
+                drawAttackMenu(); // Redraw header
+            }
+        }
+    }
+
+    // Scroll
+    if (tx > 200) {
+        if (ty < 150 && game.attackScroll > 0) {
+            game.attackScroll--;
+            drawAttackMenu();
+        } else if (ty > 150 && game.attackScroll < ABILITY_COUNT - 6) {
+            game.attackScroll++;
+            drawAttackMenu();
+        }
+    }
+}
+
+// =============================================================================
 // MENU VIEW
 // =============================================================================
 void drawMenu() {
@@ -828,6 +1023,13 @@ void handleTouch(int tx, int ty) {
         return;
     }
     
+    if (game.inAttackMenu) {
+        handleAttackMenuTouch(tx, ty);
+        return;
+    }
+
+    if (game.isAttacking) return; // Block input
+
     // Buttons
     if (ty >= BUTTON_Y) {
         if (tx >= 15 && tx < 85) {
@@ -837,38 +1039,10 @@ void handleTouch(int tx, int ty) {
             setStatus("FEEDING!", "+MP +HP", C_GREEN);
             creature.triggerAnimation(ANIM_EATING, 800);
         } else if (tx >= 85 && tx < 155) {
-            // ATTACK - Execute random available ability
-            int maxAbilities = petStats.stats.stage + 1;
-            if (maxAbilities > ABILITY_COUNT) maxAbilities = ABILITY_COUNT;
-            
-            // Find affordable abilities
-            int affordable[ABILITY_COUNT];
-            int count = 0;
-            for (int i = 0; i < maxAbilities; i++) {
-                if (petStats.stats.mp >= abilities[i].mpCost) {
-                    affordable[count++] = i;
-                }
-            }
-            
-            if (count > 0) {
-                // Pick random affordable ability
-                int pick = affordable[random(0, count)];
-                petStats.stats.mp -= abilities[pick].mpCost;
-                petStats.addXP(XP_AUTO_ATTACK * 2); // Bonus XP for manual attack
-                
-                // Animation based on attack type
-                if (abilities[pick].type == 0) {
-                    creature.triggerAnimation(ANIM_ATTACK, 800);
-                } else {
-                    creature.triggerAnimation(ANIM_SCANNING, 1200);
-                }
-                
-                setStatus("ATTACK!", abilities[pick].name, abilities[pick].type == 0 ? C_RED : C_CYAN);
-                game.topBarDirty = true;
-            } else {
-                setStatus("LOW MP!", "Need more power...", C_RED);
-                creature.triggerAnimation(ANIM_CRITICAL, 500);
-            }
+            // ATTACK -> OPEN MENU
+            game.inAttackMenu = true;
+            game.attackScroll = 0;
+            drawAttackMenu();
         } else if (tx >= 155 && tx < 225) {
             // MENU
             game.inMenuView = true;
@@ -898,7 +1072,7 @@ void snifferTask(void *p) {
     while (true) {
         wifiSniffer.loop();
         sdManager.processBuffer();
-        vTaskDelay(50); // Increased delay to prevent UI stutters (Core contention)
+        vTaskDelay(20); // Reduced delay for better performance
     }
 }
 
@@ -1128,6 +1302,25 @@ void loop() {
     static unsigned long lastFrame = 0;
     static bool wasDead = false;
     unsigned long now = millis();
+
+    // ATTACK HANDLING (Blocking)
+    if (game.isAttacking) {
+        if (now > game.attackEndTime) {
+            game.isAttacking = false;
+            wifiSniffer.stopAttack();
+            creature.triggerAnimation(ANIM_HAPPY, 1000);
+            petStats.addXP(50); // XP for completing manual attack
+            setStatus("ATTACK DONE", "Systems Normal", C_GREEN);
+            drawBackground();
+        } else {
+            // Refresh execution screen (progress bar)
+            if (now - lastFrame > 100) {
+                drawAttackExecution();
+                lastFrame = now;
+            }
+            return; // Block other UI updates
+        }
+    }
     
     // DEATH HANDLING
     if (petStats.stats.isDead) {
@@ -1261,7 +1454,7 @@ void loop() {
     
     // Render at 30fps
     if (now - lastFrame > 33) {
-        if (!game.inListView && !game.inMenuView) {
+        if (!game.inListView && !game.inMenuView && !game.inAttackMenu) {
             updateGhostPosition();
             drawGhost();
             drawTopBar();

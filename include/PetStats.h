@@ -102,19 +102,19 @@ private:
 // XP Rewards
 #define XP_HANDSHAKE     100
 #define XP_PMKID         150
-#define XP_DEAUTH        25
+#define XP_DEAUTH        50
 #define XP_NEW_NETWORK   10
 #define XP_BLE_DEVICE    8
-#define XP_PROBE         3
+#define XP_PROBE         5
 #define XP_FEED          20
 #define XP_PLAY          15
-#define XP_AUTO_ATTACK   5
+#define XP_AUTO_ATTACK   25
 
 // HP/MP rewards
-#define HP_CAPTURE       5
-#define HP_HANDSHAKE     15
-#define MP_CAPTURE       10
-#define MP_HANDSHAKE     20
+#define HP_CAPTURE       8
+#define HP_HANDSHAKE     20
+#define MP_CAPTURE       15
+#define MP_HANDSHAKE     30
 #define MP_FEED          15
 
 #endif

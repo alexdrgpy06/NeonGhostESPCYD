@@ -60,9 +60,11 @@ public:
     volatile uint32_t deauthCount;
     
     // Attacks
+    void startAttack(int type, int duration);
     void beaconSpam();     // Random SSIDs
     void rickRoll();       // Lyrics SSIDs
     void deauthAttack();   // Send deauth to random net
+    void probeFlood();     // Probe request flood
     void stopAttack();     // Stop active attack
     bool isAttacking() { return attackMode; }
     
@@ -87,7 +89,8 @@ private:
     // Attack State
     bool attackMode;
     unsigned long attackStart;
-    int attackType; // 0=None, 1=Beacon, 2=RickRoll
+    unsigned long attackDuration;
+    int attackType; // 0=None, 1=Beacon, 2=RickRoll, 3=Deauth, 4=Probe
     
     void broadcastBeacon(const char* ssid);
     
