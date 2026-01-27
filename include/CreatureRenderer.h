@@ -45,7 +45,8 @@ public:
     enum EvolutionStage { 
         SPARK, BYTE, GHOST, SPECTER, PHANTOM, WRAITH, 
         SHADE, REVENANT, BANSHEE, LICH, POLTERGEIST, 
-        VOID, NIGHTMARE, REAPER, DAEMON 
+        VOID, NIGHTMARE, REAPER, DAEMON,
+        GLITCH, CYPHER, OMEGA, AKIRA, SINGULARITY
     };
     
     CreatureRenderer(TFT_eSPI *tft);

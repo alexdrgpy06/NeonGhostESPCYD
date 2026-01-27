@@ -3,10 +3,10 @@
 
 #include <Arduino.h>
 
-#define STAGE_COUNT 15
+#define STAGE_COUNT 20
 
 // =============================================================================
-// EVOLUTION STAGES (15 total)
+// EVOLUTION STAGES (20 total)
 // =============================================================================
 enum EvolutionStage {
     STAGE_SPARK = 0,      // Lvl 1-2
@@ -23,7 +23,12 @@ enum EvolutionStage {
     STAGE_VOID,           // Lvl 36-40
     STAGE_NIGHTMARE,      // Lvl 41-47
     STAGE_REAPER,         // Lvl 48-55
-    STAGE_DAEMON          // Lvl 56+
+    STAGE_DAEMON,         // Lvl 56-65
+    STAGE_GLITCH,         // Lvl 66-70
+    STAGE_CYPHER,         // Lvl 71-80
+    STAGE_OMEGA,          // Lvl 81-85
+    STAGE_AKIRA,          // Lvl 86-95
+    STAGE_SINGULARITY     // Lvl 96+
 };
 
 // =============================================================================

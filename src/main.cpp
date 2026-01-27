@@ -152,9 +152,14 @@ Ability abilities[] = {
     {"Samsung Spam", 1, 15, 35000, 0},  // VOID (was Beacon Spam)
     {"Full Scan", 0, 18, 40000, 0},     // NIGHTMARE
     {"Crash Attack", 1, 20, 45000, 0},  // REAPER
-    {"Arsenal", 2, 25, 50000, 0}        // DAEMON
+    {"Arsenal", 2, 25, 50000, 0},       // DAEMON
+    {"Auth Flood", 0, 15, 40000, 0},    // GLITCH
+    {"BLE Crash", 1, 20, 45000, 0},     // CYPHER
+    {"Deauth Flood", 0, 20, 45000, 0},  // OMEGA
+    {"EAPOL Blast", 0, 25, 50000, 0},   // AKIRA
+    {"Zero Day", 2, 50, 60000, 0}       // SINGULARITY
 };
-#define ABILITY_COUNT 15
+#define ABILITY_COUNT 20
 
 // Run random ability from available pool
 void processAbilities() {
@@ -723,10 +728,16 @@ void handleAttackMenuTouch(int tx, int ty) {
                     else if (strcmp(a->name, "Rick Roll") == 0) wifiSniffer.rickRoll();
                     else if (strcmp(a->name, "Deauth Attack") == 0) wifiSniffer.deauthAttack();
                     else if (strcmp(a->name, "Probe Flood") == 0) wifiSniffer.probeFlood();
+                    else if (strcmp(a->name, "Auth Flood") == 0) wifiSniffer.authFlood();
+                    else if (strcmp(a->name, "Deauth Flood") == 0) wifiSniffer.deauthAttack();
+                    else if (strcmp(a->name, "EAPOL Blast") == 0) wifiSniffer.deauthAttack();
                     else {
                         // Generic/Scan
                          creature.triggerAnimation(ANIM_SCANNING, duration);
                     }
+                } else if (a->type == 2) { // Mixed (Zero Day)
+                    wifiSniffer.deauthAttack(); // Start with Deauth
+                    // Ideally we'd mix attacks, but single channel for now
                 } else { // BLE
                     // For BLE, we just run the scan/spam visually for now as the BLEScanner is separate
                      creature.triggerAnimation(ANIM_HACKING, duration);

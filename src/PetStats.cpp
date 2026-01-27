@@ -10,9 +10,11 @@
  */
 #include "PetStats.h"
 #include "GhostSprites.h"
+#include "PacketSniffer.h" // Needed for radiation logic
 #include <Preferences.h>
 
 extern Preferences prefs;
+extern PacketSniffer wifiSniffer;
 
 void PetStatsManager::init() {
     stats.hp = 100;
@@ -71,6 +73,25 @@ void PetStatsManager::update() {
     decayMP();
     checkHP();
     
+    // DATA RADIATION: Passive MP regen from high traffic
+    static unsigned long lastRadiationCheck = 0;
+    static uint32_t lastPacketCount = 0;
+
+    if (now - lastRadiationCheck > 5000) { // Check every 5s
+        uint32_t currentPackets = wifiSniffer.packetCount;
+        uint32_t delta = currentPackets - lastPacketCount;
+
+        // If we see decent traffic (>50 pkts/5s), gain 1 MP
+        if (delta > 50 && stats.mp < 100) {
+            stats.mp++;
+            // Also counts as minor activity to prevent sleep if REALLY active
+            if (delta > 200) stats.lastActivity = now;
+        }
+
+        lastPacketCount = currentPackets;
+        lastRadiationCheck = now;
+    }
+
     // Auto-sleep after 2 minutes
     if (!stats.isSleeping && (now - stats.lastActivity > 120000)) {
         stats.isSleeping = true;
@@ -84,6 +105,8 @@ void PetStatsManager::decayMP() {
     unsigned long rate = stats.isSleeping ? MP_DECAY_RATE * 3 : MP_DECAY_RATE;
     
     if (now - stats.lastMPDecay > rate) {
+        // If MP is full, verify we are not just gaining infinite from radiation
+        // Decay normally
         if (stats.mp > 0) stats.mp--;
         stats.lastMPDecay = now;
     }
@@ -231,7 +254,12 @@ int PetStatsManager::getStageFromLevel(int level) {
     if (level <= 40) return 11; // VOID
     if (level <= 47) return 12; // NIGHTMARE
     if (level <= 55) return 13; // REAPER
-    return 14;                  // DAEMON
+    if (level <= 65) return 14; // DAEMON
+    if (level <= 70) return 15; // GLITCH
+    if (level <= 80) return 16; // CYPHER
+    if (level <= 85) return 17; // OMEGA
+    if (level <= 95) return 18; // AKIRA
+    return 19;                  // SINGULARITY
 }
 
 const char* PetStatsManager::getStageName() {

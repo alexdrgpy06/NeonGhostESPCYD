@@ -65,6 +65,7 @@ public:
     void rickRoll();       // Lyrics SSIDs
     void deauthAttack();   // Send deauth to random net
     void probeFlood();     // Probe request flood
+    void authFlood();      // Authentication flood
     void stopAttack();     // Stop active attack
     bool isAttacking() { return attackMode; }
     

