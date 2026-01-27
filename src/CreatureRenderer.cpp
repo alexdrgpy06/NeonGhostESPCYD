@@ -1,45 +1,84 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════╗
+ * ║              CREATURE RENDERER MODULE v7.0                    ║
+ * ║   Handles sprite drawing, animations and particle effects     ║
+ * ║                                                               ║
+ * ║   Features: 240px Full-Width Buffer, RGB LED Sync,            ║
+ * ║   11 Animation States, Dynamic Event Colors                   ║
+ * ║                                                               ║
+ * ║                     by Alex R.                                ║
+ * ╚═══════════════════════════════════════════════════════════════╝
+ */
 #include "CreatureRenderer.h"
 #include "GhostSprites.h"
+
+// Ghost-following 128x128 sprite - efficient and flicker-free
+
 
 CreatureRenderer::CreatureRenderer(TFT_eSPI *tft) {
     _tft = tft;
     spr = new TFT_eSprite(tft);
-    spr->createSprite(128, 128);
+    spr->createSprite(128, 128); // Ghost-following sprite (32KB, memory efficient)
     spr->setSwapBytes(true);
     
     lastBlinkTime = 0;
     isBlinking = false;
     
-    // Animation
     currentAnim = ANIM_IDLE;
     animStart = 0;
     animDuration = 0;
     
-    // Position
     posX = 0;
     posY = 0;
+    lastDrawX = 120; // Default center
+    lastDrawY = 64;
     targetX = 0;
     targetY = 0;
     velX = 0;
     velY = 0;
     lastMove = 0;
+    
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        particles[i].active = false;
+    }
+    
+    // LED Init
+    ledFxMode = LED_SOLID;
+    ledFxColor = 0;
+    ledFxStart = 0;
+    ledFxDuration = 0;
 }
 
 int CreatureRenderer::getStageFromLevel(int level) {
-    if (level <= 3) return 0;
-    else if (level <= 6) return 1;
-    else if (level <= 9) return 2;
-    else if (level <= 14) return 3;
-    else if (level <= 19) return 4;
-    else if (level <= 24) return 5;
-    else if (level <= 29) return 6;
-    else return 7;
+    if (level <= 2) return 0;        // SPARK
+    else if (level <= 4) return 1;   // BYTE
+    else if (level <= 6) return 2;   // GHOST
+    else if (level <= 9) return 3;   // SPECTER
+    else if (level <= 12) return 4;  // PHANTOM
+    else if (level <= 15) return 5;  // WRAITH
+    else if (level <= 18) return 6;  // SHADE
+    else if (level <= 22) return 7;  // REVENANT
+    else if (level <= 26) return 8;  // BANSHEE
+    else if (level <= 30) return 9;  // LICH
+    else if (level <= 35) return 10; // POLTERGEIST
+    else if (level <= 40) return 11; // VOID
+    else if (level <= 47) return 12; // NIGHTMARE
+    else if (level <= 55) return 13; // REAPER
+    else return 14;                  // DAEMON
 }
 
 void CreatureRenderer::triggerAnimation(AnimState anim, int duration) {
     currentAnim = anim;
     animStart = millis();
     animDuration = duration;
+    
+    if (anim == ANIM_HAPPY) {
+        emitParticles(lastDrawX + 48, lastDrawY + 48, 8, 0x07E0, PART_SPARK);
+    } else if (anim == ANIM_EVOLVING) {
+        emitParticles(lastDrawX + 48, lastDrawY + 48, 12, 0xF81F, PART_RING);
+    } else if (anim == ANIM_ATTACK) {
+        emitParticles(lastDrawX + 48, lastDrawY + 48, 6, 0xFFE0, PART_SPARK);
+    }
 }
 
 void CreatureRenderer::updatePosition() {
@@ -47,114 +86,291 @@ void CreatureRenderer::updatePosition() {
     float dt = (now - lastMove) / 1000.0f;
     lastMove = now;
     
-    // Limit delta time
     if (dt > 0.1f) dt = 0.1f;
     
-    // Random wandering target change (more frequent)
+    float speed = (currentAnim == ANIM_SLEEPING) ? 0.5f : 3.0f;
+    
     if (random(0, 100) < 3) {
-        targetX = random(-30, 31);  // Larger range
+        targetX = random(-30, 31);
         targetY = random(-20, 21);
     }
     
-    // Move towards target (faster)
     float dx = targetX - posX;
     float dy = targetY - posY;
     
-    posX += dx * 3.0f * dt;
-    posY += dy * 3.0f * dt;
+    posX += dx * speed * dt;
+    posY += dy * speed * dt;
     
-    // Clamp to larger bounds
     if (posX < -35) posX = -35;
     if (posX > 35) posX = 35;
     if (posY < -25) posY = -25;
     if (posY > 25) posY = 25;
 }
 
+void CreatureRenderer::emitParticles(int x, int y, int count, uint16_t color, ParticleType type) {
+    for (int i = 0; i < MAX_PARTICLES && count > 0; i++) {
+        if (!particles[i].active) {
+            particles[i].active = true;
+            particles[i].x = x;
+            particles[i].y = y;
+            particles[i].color = color;
+            particles[i].type = type;
+            particles[i].life = 255;
+            particles[i].maxLife = 255;
+            
+            if (type == PART_RING) {
+                particles[i].vx = 0;
+                particles[i].vy = 0;
+            } else if (type == PART_ZZZ) {
+                particles[i].vx = random(-10, 10) / 10.0f;
+                particles[i].vy = -1.5f - random(0, 10) / 10.0f;
+                particles[i].ch = 'Z';
+            } else {
+                float angle = random(0, 628) / 100.0f;
+                float speed = 1.0f + random(0, 30) / 10.0f;
+                particles[i].vx = cos(angle) * speed;
+                particles[i].vy = sin(angle) * speed;
+            }
+            count--;
+        }
+    }
+}
+
+void CreatureRenderer::updateParticles() {
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (particles[i].active) {
+            particles[i].x += particles[i].vx;
+            particles[i].y += particles[i].vy;
+            
+            if (particles[i].type == PART_RING) {
+                particles[i].life -= 3;
+            } else {
+                particles[i].life -= 5;
+            }
+            
+            if (particles[i].life <= 0 || particles[i].x < 0 || particles[i].x > 128 ||
+                particles[i].y < 0 || particles[i].y > 128) {
+                particles[i].active = false;
+            }
+        }
+    }
+}
+
+void CreatureRenderer::drawParticles() {
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (particles[i].active) {
+            uint8_t alpha = particles[i].life;
+/* // === LED CONTROL ===
+    unsigned long now = millis();
+    uint16_t finalLedColor = currentColor; // Changed from params.color to currentColor
+    
+    if (ledFxMode != LED_SOLID) {
+        if (ledFxDuration > 0 && (now - ledFxStart > ledFxDuration)) {
+            ledFxMode = LED_SOLID; // Auto reset
+        } else {
+            // Apply FX
+            switch (ledFxMode) {
+                case LED_STROBE:
+                    if ((now / 50) % 2 == 0) finalLedColor = 0; // Blink fast
+                    else finalLedColor = ledFxColor;
+                    break;
+                case LED_PULSE: {
+                    float val = (sin(now / 200.0f) + 1.0f) * 0.5f; // 0.0 to 1.0
+                    // Mix black and color
+                    uint8_t r = ((ledFxColor >> 11) & 0x1F) * val;
+                    uint8_t g = ((ledFxColor >> 5) & 0x3F) * val;
+                    uint8_t b = (ledFxColor & 0x1F) * val;
+                    finalLedColor = (r << 11) | (g << 5) | b;
+                    break; 
+                }
+                case LED_RAINBOW: {
+                    // Simple hue cycle
+                    uint8_t hue = (now / 10) % 255;
+                    // Mock rainbow (simplified)
+                    if (hue < 85) finalLedColor = TFT_RED;
+                    else if (hue < 170) finalLedColor = TFT_GREEN;
+                    else finalLedColor = TFT_BLUE; 
+                    // Better rainbow would be HSL to RGB565 but this is enough
+                    break;
+                }
+                case LED_OFF:
+                    finalLedColor = 0;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    
+    // Convert 565 to PWM (approx)
+    uint8_t led_r = (finalLedColor >> 11) & 0x1F; // Renamed to avoid conflict
+    uint8_t led_g = (finalLedColor >> 5) & 0x3F; // Renamed to avoid conflict
+    uint8_t led_b = finalLedColor & 0x1F; // Renamed to avoid conflict
+    
+    // Scale to 0-255
+    analogWrite(4, led_r * 8);   // R
+    analogWrite(16, led_g * 4);  // G
+    analogWrite(17, led_b * 8);  // B */
+            uint16_t c = particles[i].color;
+            
+            uint8_t r = ((c >> 11) & 0x1F) * alpha / 255;
+            uint8_t g = ((c >> 5) & 0x3F) * alpha / 255;
+            uint8_t b = (c & 0x1F) * alpha / 255;
+            uint16_t fadedColor = (r << 11) | (g << 5) | b;
+            
+            switch (particles[i].type) {
+                case PART_DOT:
+                    spr->fillCircle((int)particles[i].x, (int)particles[i].y, 2, fadedColor);
+                    break;
+                case PART_SPARK:
+                    spr->drawPixel((int)particles[i].x, (int)particles[i].y, fadedColor);
+                    spr->drawPixel((int)particles[i].x + 1, (int)particles[i].y, fadedColor);
+                    spr->drawPixel((int)particles[i].x, (int)particles[i].y + 1, fadedColor);
+                    break;
+                case PART_RING: {
+                    int radius = (255 - particles[i].life) / 5;
+                    spr->drawCircle((int)particles[i].x, (int)particles[i].y, radius, fadedColor);
+                    break;
+                }
+                case PART_ZZZ:
+                    spr->setTextColor(fadedColor);
+                    spr->drawChar((int)particles[i].x, (int)particles[i].y, particles[i].ch, fadedColor, 0, 1);
+                    break;
+            }
+        }
+    }
+}
+
+
+
+void CreatureRenderer::drawZZZ(int x, int y, float phase) {
+    for (int i = 0; i < 3; i++) {
+        int bx = x + 40 + i * 8;
+        int by = y - 10 - i * 12 - (int)(sin(phase + i) * 5);
+        spr->drawChar(bx, by, 'Z', 0x07FF, 0, 1);
+    }
+}
+
+// Set LED Effect
+void CreatureRenderer::setLedFx(LedMode mode, uint16_t color, int duration) {
+    ledFxMode = mode;
+    ledFxColor = color;
+    ledFxDuration = duration;
+    ledFxStart = millis();
+}
+
 void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage stage, int mood) {
     unsigned long now = millis();
     
-    // Update wandering position
     updatePosition();
+    updateParticles();
     
-    // Check animation expiry
     if (currentAnim != ANIM_IDLE && (now - animStart > (unsigned long)animDuration)) {
         currentAnim = ANIM_IDLE;
     }
     
-    // Calculate animation offsets
     int animOffsetX = 0;
     int animOffsetY = 0;
     float animPhase = (now - animStart) / 100.0f;
+    float globalPhase = now / 1000.0f;
     
     switch (currentAnim) {
-        case ANIM_IDLE:
-            // Gentle bob
-            animOffsetY = (int)(sin(now / 500.0) * 5.0);
+        case ANIM_IDLE: 
+            // Dual-frequency breathing for natural feel
+            animOffsetY = (int)(sin(now / 600.0) * 4.0 + sin(now / 1500.0) * 2.0); 
             break;
-            
-        case ANIM_EATING:
-            // Quick chomp motion
-            animOffsetY = (int)(sin(animPhase * 8) * 6);
+        case ANIM_EATING: 
+            animOffsetY = (int)(sin(animPhase * 8) * 6); 
             break;
-            
-        case ANIM_HAPPY:
-            // Excited bouncing
-            animOffsetY = (int)(abs(sin(animPhase * 5)) * -15);
+        case ANIM_HAPPY: 
+            // Bouncy jump with decay
+            animOffsetY = (int)(abs(sin(animPhase * 4)) * -18); 
+            animOffsetX = (int)(sin(animPhase * 2) * 3);
             break;
-            
-        case ANIM_ALERT:
-            // Side-to-side shake
-            animOffsetX = (int)(sin(animPhase * 10) * 10);
+        case ANIM_ALERT: 
+            animOffsetX = (int)(sin(animPhase * 12) * 8); 
             break;
-            
-        case ANIM_EVOLVING:
-            // Spin/glitch effect
-            animOffsetY = (int)(sin(animPhase * 4) * 8);
-            animOffsetX = (int)(cos(animPhase * 3) * 5);
+        case ANIM_EVOLVING: 
+            // Spiral motion
+            animOffsetY = (int)(sin(animPhase * 3) * 10); 
+            animOffsetX = (int)(cos(animPhase * 3) * 8); 
             break;
-
-        case ANIM_ATTACK:
+        case ANIM_ATTACK: 
+            // Sharp shake
+            animOffsetX = (int)(random(-5, 6)); 
+            animOffsetY = (int)(random(-3, 4)); 
+            break;
+        case ANIM_SLEEPING: 
+            // Very slow gentle bob
+            animOffsetY = (int)(sin(now / 2000.0) * 2.0); 
+            if (random(0, 80) < 3) emitParticles(lastDrawX + 60, lastDrawY + 20, 1, 0x07FF, PART_ZZZ); 
+            break;
+        case ANIM_HACKING: 
+            // Glitchy micro-movements
+            animOffsetX = (int)(random(-2, 3)); 
+            if (random(0, 10) < 2) animOffsetY = random(-2, 3);
+            break;
+        case ANIM_SCANNING: 
+            // Smooth radar sweep
+            animOffsetY = (int)(sin(now / 150.0) * 3); 
+            break;
+        case ANIM_CRITICAL: 
             // Violent shake
-            animOffsetX = (int)(random(-4, 5));
-            animOffsetY = (int)(random(-4, 5));
+            animOffsetX = (int)(random(-10, 11)); 
+            animOffsetY = (int)(random(-10, 11)); 
+            break;
+        case ANIM_DEATH: 
+            // Sink down
+            animOffsetY = (int)((now - animStart) / 40); 
+            if (animOffsetY > 60) animOffsetY = 60; 
             break;
     }
     
-    // Blinking
-    if (!isBlinking && (now - lastBlinkTime > 4000)) {
-        isBlinking = true;
-        lastBlinkTime = now;
-    } else if (isBlinking && (now - lastBlinkTime > 150)) {
-        isBlinking = false;
-        lastBlinkTime = now;
-    }
+    // No blinking for stability
+    // if (!isBlinking && (now - lastBlinkTime > 4000)) { isBlinking = true; lastBlinkTime = now; }
+    // else if (isBlinking && (now - lastBlinkTime > 150)) { isBlinking = false; lastBlinkTime = now; }
     
-    // Clear sprite
     spr->fillSprite(TFT_BLACK);
     
-    // Get sprite and color
     int stageIdx = getStageFromLevel(level);
     const uint8_t* sprite = GHOST_STAGES[stageIdx];
     uint16_t color = STAGE_COLORS[stageIdx];
+    uint16_t glowColor = STAGE_GLOW_COLORS[stageIdx];
     
-    // Evolution animation: cycle colors
     if (currentAnim == ANIM_EVOLVING) {
-        int colorIdx = ((now / 100) % 5);
-        color = STAGE_COLORS[colorIdx];
+        color = STAGE_COLORS[((now / 100) % 7)];
+    } else if (currentAnim == ANIM_CRITICAL) {
+        if (random(0, 2) == 0) color = 0xF800;
+    } else if (currentAnim == ANIM_EATING) {
+        color = 0xFD20; // Orange for feeding/events
+    } else if (currentAnim == ANIM_ATTACK) {
+        color = 0xF800; // Red for attacking/deauth
+    } else if (currentAnim == ANIM_HACKING) {
+        color = 0x07E0; // Matrix Green
+    } else if (currentAnim == ANIM_SCANNING) {
+        color = 0x07FF; // Cyan Radar
+    } else if (currentAnim == ANIM_DEATH) {
+        float fadeAmount = (now - animStart) / (float)animDuration;
+        if (fadeAmount > 1.0f) fadeAmount = 1.0f;
+        uint8_t grey = 128 - (int)(fadeAmount * 100);
+        color = (grey >> 3) << 11 | (grey >> 2) << 5 | (grey >> 3);
+    } else if (currentAnim == ANIM_SLEEPING) {
+        color = glowColor;
     }
     
-    // Dim glow color
-    uint16_t glowColor = (color >> 2) & 0x39E7;
+    currentColor = color; // Sync for LED
     
-    // Calculate final position
     int scale = 4;
-    int baseX = (128 - 24 * scale) / 2;
-    int baseY = (128 - 24 * scale) / 2;
+    // For 128x128 sprite: Ghost (96px) centered at (16, 16)
+    // animOffset adds movement within the sprite
+    int drawX = 16 + (int)posX + animOffsetX;  // Base: center 96px ghost in 128px
+    int drawY = 16 + (int)posY + animOffsetY;
     
-    int drawX = baseX + (int)posX + animOffsetX;
-    int drawY = baseY + (int)posY + animOffsetY;
+    // Store screen coordinates for particles (sprite will be pushed at centerX-64)
+    lastDrawX = centerX - 64 + drawX;
+    lastDrawY = centerY - 64 + drawY;
     
-    // FIRST PASS: Glow
+    // SECOND PASS: Main pixels
     for (int row = 0; row < 24; row++) {
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
@@ -164,43 +380,26 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
             if ((rowData >> (23 - col)) & 0x01) {
                 int px = drawX + col * scale;
                 int py = drawY + row * scale;
-                spr->fillRect(px - 2, py - 2, scale + 4, scale + 4, glowColor);
-            }
-        }
-    }
-    
-    // SECOND PASS: Main pixels
-    for (int row = 0; row < 24; row++) {
-        // Glitch effect during evolution
-        int rowShift = 0;
-        if (currentAnim == ANIM_EVOLVING && random(0, 100) < 20) {
-            rowShift = random(-3, 4) * scale;
-        }
-        
-        uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
-                           (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
-                           (pgm_read_byte(&sprite[row * 3 + 2]));
-        
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale + rowShift;
-                int py = drawY + row * scale;
                 spr->fillRect(px, py, scale, scale, color);
             }
         }
     }
     
-    // Eating animation: draw "packet" being eaten
+    drawParticles();
+    
+    if (currentAnim == ANIM_SLEEPING) {
+        drawZZZ(drawX, drawY, globalPhase);
+    }
+    
     if (currentAnim == ANIM_EATING) {
         int packetX = drawX + 90 - (int)(animPhase * 15);
         int packetY = drawY + 40;
         if (packetX > drawX + 50) {
-            spr->fillRect(packetX, packetY, 12, 8, 0xFD20); // Orange packet
+            spr->fillRect(packetX, packetY, 12, 8, 0xFD20);
             spr->drawRect(packetX, packetY, 12, 8, TFT_WHITE);
         }
     }
     
-    // Happy animation: particles
     if (currentAnim == ANIM_HAPPY) {
         for (int i = 0; i < 3; i++) {
             int px = random(0, 128);
@@ -209,30 +408,80 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
         }
     }
 
-    // Attack animation: Lightning bolts
     if (currentAnim == ANIM_ATTACK) {
-        // Draw random lightning bolts from center
-        int centerX = drawX + 48; // 24*scale/2
-        int centerY = drawY + 48;
-        for (int i = 0; i < 6; i++) {
-            int len = random(30, 60);
-            float angle = random(0, 628) / 100.0;
-            int ex = centerX + (int)(cos(angle) * len);
-            int ey = centerY + (int)(sin(angle) * len);
-            spr->drawLine(centerX, centerY, ex, ey, TFT_YELLOW);
-            // Draw a second segment
-            int ex2 = ex + random(-10, 11);
-            int ey2 = ey + random(-10, 11);
-            spr->drawLine(ex, ey, ex2, ey2, TFT_WHITE);
-        }
-        // Flash effect
-        if (random(0, 2) == 0) {
-            spr->drawRect(0, 0, 128, 128, TFT_WHITE);
+        // Simple pulse effect instead of lines
+        int spriteCenterX = drawX + 48;
+        int spriteCenterY = drawY + 48;
+        int pulseSize = (int)(animPhase * 2) % 30;
+        spr->drawCircle(spriteCenterX, spriteCenterY, pulseSize + 10, TFT_YELLOW);
+        spr->drawCircle(spriteCenterX, spriteCenterY, pulseSize + 20, 0xFD20);
+    }
+    
+    if (currentAnim == ANIM_CRITICAL) {
+        // Simple red tint flash
+        // Just skip - the red color change is enough
+    }
+    
+    // === LED CONTROL ===
+    // Use local color
+    uint16_t baseColor = color;
+    uint16_t finalLedColor = baseColor; 
+    
+    // Check effects
+    if (ledFxMode != LED_SOLID) {
+        if (ledFxDuration > 0 && (millis() - ledFxStart > ledFxDuration)) {
+            ledFxMode = LED_SOLID; // Auto reset
+        } else {
+            // Apply FX (Strobe / Pulse / Rainbow)
+            unsigned long t = millis();
+            switch (ledFxMode) {
+                case LED_STROBE:
+                    if ((t / 50) % 2 == 0) finalLedColor = 0; 
+                    else finalLedColor = ledFxColor;
+                    break;
+                case LED_PULSE: {
+                    float v = (sin(t / 200.0f) + 1.0f) * 0.5f;
+                    uint8_t r = ((ledFxColor >> 11) & 0x1F) * v;
+                    uint8_t g = ((ledFxColor >> 5) & 0x3F) * v;
+                    uint8_t b = (ledFxColor & 0x1F) * v;
+                    finalLedColor = (r << 11) | (g << 5) | b;
+                    break; 
+                }
+                case LED_RAINBOW: {
+                    uint8_t h = (t / 10) % 255;
+                    // Simple rainbow map
+                    if (h < 85) finalLedColor = 0xF800; // Red
+                    else if (h < 170) finalLedColor = 0x07E0; // Green
+                    else finalLedColor = 0x001F; // Blue
+                    break;
+                }
+                default: break;
+            }
         }
     }
     
-    // Push to screen
-    spr->pushSprite(centerX - 64, centerY - 64);
+    // Update currentColor for other uses
+    currentColor = finalLedColor;
+
+    // Write to LED Pins (CYD RGB)
+    uint8_t lr = (finalLedColor >> 11) & 0x1F;
+    uint8_t lg = (finalLedColor >> 5) & 0x3F;
+    uint8_t lb = finalLedColor & 0x1F;
+    analogWrite(4, lr * 8);
+    analogWrite(16, lg * 4);
+    analogWrite(17, lb * 8);
+
+    // Push sprite at ghost position (sprite follows ghost)
+    int spriteX = centerX - 64;  // Center 128px sprite on ghost X
+    int spriteY = centerY - 64;  // Center 128px sprite on ghost Y
+    
+    // Clamp to screen bounds
+    if (spriteX < 0) spriteX = 0;
+    if (spriteX > 240 - 128) spriteX = 240 - 128;
+    if (spriteY < 0) spriteY = 0;
+    if (spriteY > 320 - 128) spriteY = 320 - 128;
+    
+    spr->pushSprite(spriteX, spriteY);
 }
 
 void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t color, int scale) {

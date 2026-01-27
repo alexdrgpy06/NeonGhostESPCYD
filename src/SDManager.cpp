@@ -1,3 +1,11 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════╗
+ * ║                  SD CARD MANAGER                              ║
+ * ║   Handles PCAP logging and file storage operations            ║
+ * ║                                                               ║
+ * ║                     by Alex R.                                ║
+ * ╚═══════════════════════════════════════════════════════════════╝
+ */
 #include "SDManager.h"
 
 SDManager::SDManager() {

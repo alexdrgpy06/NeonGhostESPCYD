@@ -58,6 +58,14 @@ public:
     // Stats
     volatile uint32_t packetCount;
     volatile uint32_t deauthCount;
+    
+    // Attacks
+    void beaconSpam();     // Random SSIDs
+    void rickRoll();       // Lyrics SSIDs
+    void deauthAttack();   // Send deauth to random net
+    void stopAttack();     // Stop active attack
+    bool isAttacking() { return attackMode; }
+    
     volatile uint32_t beaconCount;
     volatile uint32_t handshakeCount;
     volatile uint32_t probeCount;
@@ -75,6 +83,13 @@ private:
     unsigned long lastAttack;
     bool isRunning;
     int techLevel;
+    
+    // Attack State
+    bool attackMode;
+    unsigned long attackStart;
+    int attackType; // 0=None, 1=Beacon, 2=RickRoll
+    
+    void broadcastBeacon(const char* ssid);
     
     // Event queue
     volatile CaptureEvent pendingEvent;
