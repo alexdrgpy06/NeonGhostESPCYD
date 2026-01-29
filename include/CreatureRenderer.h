@@ -105,6 +105,14 @@ private:
     void drawRadarPulse(int centerX, int centerY, float phase);
     void drawZZZ(int x, int y, float phase);
     void drawGlitchOverlay();
+
+    // Optimization state
+    int _prevSpriteX;
+    int _prevSpriteY;
+    int _prevDrawX;
+    int _prevDrawY;
+    uint16_t _prevColor;
+    AnimState _prevAnim;
 };
 
 #endif
