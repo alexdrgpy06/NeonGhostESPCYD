@@ -375,13 +375,34 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
+
+        // Optimization: Skip empty rows
+        if (rowData == 0) continue;
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale;
-                int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+        // Optimization: RLE horizontal drawing to reduce fillRect calls
+        int py = drawY + row * scale;
+
+        for (int col = 0; col < 24; ) {
+            // Find start of run
+            int startCol = col;
+            while(startCol < 24 && !((rowData >> (23 - startCol)) & 0x01)) {
+                startCol++;
             }
+
+            if (startCol >= 24) break;
+
+            // Find end of run
+            int endCol = startCol + 1;
+            while(endCol < 24 && ((rowData >> (23 - endCol)) & 0x01)) {
+                endCol++;
+            }
+
+            // Draw run
+            int px = drawX + startCol * scale;
+            int width = (endCol - startCol) * scale;
+            spr->fillRect(px, py, width, scale, color);
+
+            col = endCol;
         }
     }
     
