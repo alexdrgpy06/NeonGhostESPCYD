@@ -37,6 +37,13 @@ CreatureRenderer::CreatureRenderer(TFT_eSPI *tft) {
     velX = 0;
     velY = 0;
     lastMove = 0;
+
+    // Optimization State Init
+    prevSpriteX = -999;
+    prevSpriteY = -999;
+    prevInternalDrawX = -999;
+    prevInternalDrawY = -999;
+    prevColor = 0;
     
     for (int i = 0; i < MAX_PARTICLES; i++) {
         particles[i].active = false;
@@ -160,57 +167,6 @@ void CreatureRenderer::drawParticles() {
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (particles[i].active) {
             uint8_t alpha = particles[i].life;
-/* // === LED CONTROL ===
-    unsigned long now = millis();
-    uint16_t finalLedColor = currentColor; // Changed from params.color to currentColor
-    
-    if (ledFxMode != LED_SOLID) {
-        if (ledFxDuration > 0 && (now - ledFxStart > ledFxDuration)) {
-            ledFxMode = LED_SOLID; // Auto reset
-        } else {
-            // Apply FX
-            switch (ledFxMode) {
-                case LED_STROBE:
-                    if ((now / 50) % 2 == 0) finalLedColor = 0; // Blink fast
-                    else finalLedColor = ledFxColor;
-                    break;
-                case LED_PULSE: {
-                    float val = (sin(now / 200.0f) + 1.0f) * 0.5f; // 0.0 to 1.0
-                    // Mix black and color
-                    uint8_t r = ((ledFxColor >> 11) & 0x1F) * val;
-                    uint8_t g = ((ledFxColor >> 5) & 0x3F) * val;
-                    uint8_t b = (ledFxColor & 0x1F) * val;
-                    finalLedColor = (r << 11) | (g << 5) | b;
-                    break; 
-                }
-                case LED_RAINBOW: {
-                    // Simple hue cycle
-                    uint8_t hue = (now / 10) % 255;
-                    // Mock rainbow (simplified)
-                    if (hue < 85) finalLedColor = TFT_RED;
-                    else if (hue < 170) finalLedColor = TFT_GREEN;
-                    else finalLedColor = TFT_BLUE; 
-                    // Better rainbow would be HSL to RGB565 but this is enough
-                    break;
-                }
-                case LED_OFF:
-                    finalLedColor = 0;
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-    
-    // Convert 565 to PWM (approx)
-    uint8_t led_r = (finalLedColor >> 11) & 0x1F; // Renamed to avoid conflict
-    uint8_t led_g = (finalLedColor >> 5) & 0x3F; // Renamed to avoid conflict
-    uint8_t led_b = finalLedColor & 0x1F; // Renamed to avoid conflict
-    
-    // Scale to 0-255
-    analogWrite(4, led_r * 8);   // R
-    analogWrite(16, led_g * 4);  // G
-    analogWrite(17, led_b * 8);  // B */
             uint16_t c = particles[i].color;
             
             uint8_t r = ((c >> 11) & 0x1F) * alpha / 255;
@@ -326,12 +282,6 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
             break;
     }
     
-    // No blinking for stability
-    // if (!isBlinking && (now - lastBlinkTime > 4000)) { isBlinking = true; lastBlinkTime = now; }
-    // else if (isBlinking && (now - lastBlinkTime > 150)) { isBlinking = false; lastBlinkTime = now; }
-    
-    spr->fillSprite(TFT_BLACK);
-    
     int stageIdx = getStageFromLevel(level);
     const uint8_t* sprite = GHOST_STAGES[stageIdx];
     uint16_t color = STAGE_COLORS[stageIdx];
@@ -370,58 +320,16 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
     lastDrawX = centerX - 64 + drawX;
     lastDrawY = centerY - 64 + drawY;
     
-    // SECOND PASS: Main pixels
-    for (int row = 0; row < 24; row++) {
-        uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
-                           (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
-                           (pgm_read_byte(&sprite[row * 3 + 2]));
-        
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale;
-                int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
-            }
-        }
-    }
+    // Push sprite at ghost position (sprite follows ghost)
+    int spriteX = centerX - 64;  // Center 128px sprite on ghost X
+    int spriteY = centerY - 64;  // Center 128px sprite on ghost Y
     
-    drawParticles();
-    
-    if (currentAnim == ANIM_SLEEPING) {
-        drawZZZ(drawX, drawY, globalPhase);
-    }
-    
-    if (currentAnim == ANIM_EATING) {
-        int packetX = drawX + 90 - (int)(animPhase * 15);
-        int packetY = drawY + 40;
-        if (packetX > drawX + 50) {
-            spr->fillRect(packetX, packetY, 12, 8, 0xFD20);
-            spr->drawRect(packetX, packetY, 12, 8, TFT_WHITE);
-        }
-    }
-    
-    if (currentAnim == ANIM_HAPPY) {
-        for (int i = 0; i < 3; i++) {
-            int px = random(0, 128);
-            int py = random(0, 50);
-            spr->fillCircle(px, py, 2, color);
-        }
-    }
+    // Clamp to screen bounds
+    if (spriteX < 0) spriteX = 0;
+    if (spriteX > 240 - 128) spriteX = 240 - 128;
+    if (spriteY < 0) spriteY = 0;
+    if (spriteY > 320 - 128) spriteY = 320 - 128;
 
-    if (currentAnim == ANIM_ATTACK) {
-        // Simple pulse effect instead of lines
-        int spriteCenterX = drawX + 48;
-        int spriteCenterY = drawY + 48;
-        int pulseSize = (int)(animPhase * 2) % 30;
-        spr->drawCircle(spriteCenterX, spriteCenterY, pulseSize + 10, TFT_YELLOW);
-        spr->drawCircle(spriteCenterX, spriteCenterY, pulseSize + 20, 0xFD20);
-    }
-    
-    if (currentAnim == ANIM_CRITICAL) {
-        // Simple red tint flash
-        // Just skip - the red color change is enough
-    }
-    
     // === LED CONTROL ===
     // Use local color
     uint16_t baseColor = color;
@@ -471,16 +379,91 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
     analogWrite(16, lg * 4);
     analogWrite(17, lb * 8);
 
-    // Push sprite at ghost position (sprite follows ghost)
-    int spriteX = centerX - 64;  // Center 128px sprite on ghost X
-    int spriteY = centerY - 64;  // Center 128px sprite on ghost Y
+    // === OPTIMIZATION CHECK ===
+    bool particlesActive = false;
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (particles[i].active) {
+            particlesActive = true;
+            break;
+        }
+    }
+
+    // Optimization: Skip drawing if state hasn't changed
+    // Only applies during IDLE when no particles are active
+    if (currentAnim == ANIM_IDLE && !particlesActive &&
+        spriteX == prevSpriteX && spriteY == prevSpriteY &&
+        drawX == prevInternalDrawX && drawY == prevInternalDrawY &&
+        color == prevColor) {
+        // Nothing changed visually, skip SPI transfer
+        return;
+    }
+
+    // Update state
+    prevSpriteX = spriteX;
+    prevSpriteY = spriteY;
+    prevInternalDrawX = drawX;
+    prevInternalDrawY = drawY;
+    prevColor = color;
     
-    // Clamp to screen bounds
-    if (spriteX < 0) spriteX = 0;
-    if (spriteX > 240 - 128) spriteX = 240 - 128;
-    if (spriteY < 0) spriteY = 0;
-    if (spriteY > 320 - 128) spriteY = 320 - 128;
+    // Store screen coordinates for particles (sprite will be pushed at centerX-64)
+    lastDrawX = centerX - 64 + drawX;
+    lastDrawY = centerY - 64 + drawY;
+
+    // DRAWING
+    spr->fillSprite(TFT_BLACK);
+
+    // SECOND PASS: Main pixels
+    for (int row = 0; row < 24; row++) {
+        uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
+                           (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
+                           (pgm_read_byte(&sprite[row * 3 + 2]));
+
+        for (int col = 0; col < 24; col++) {
+            if ((rowData >> (23 - col)) & 0x01) {
+                int px = drawX + col * scale;
+                int py = drawY + row * scale;
+                spr->fillRect(px, py, scale, scale, color);
+            }
+        }
+    }
+
+    drawParticles();
+
+    if (currentAnim == ANIM_SLEEPING) {
+        drawZZZ(drawX, drawY, globalPhase);
+    }
+
+    if (currentAnim == ANIM_EATING) {
+        int packetX = drawX + 90 - (int)(animPhase * 15);
+        int packetY = drawY + 40;
+        if (packetX > drawX + 50) {
+            spr->fillRect(packetX, packetY, 12, 8, 0xFD20);
+            spr->drawRect(packetX, packetY, 12, 8, TFT_WHITE);
+        }
+    }
     
+    if (currentAnim == ANIM_HAPPY) {
+        for (int i = 0; i < 3; i++) {
+            int px = random(0, 128);
+            int py = random(0, 50);
+            spr->fillCircle(px, py, 2, color);
+        }
+    }
+
+    if (currentAnim == ANIM_ATTACK) {
+        // Simple pulse effect instead of lines
+        int spriteCenterX = drawX + 48;
+        int spriteCenterY = drawY + 48;
+        int pulseSize = (int)(animPhase * 2) % 30;
+        spr->drawCircle(spriteCenterX, spriteCenterY, pulseSize + 10, TFT_YELLOW);
+        spr->drawCircle(spriteCenterX, spriteCenterY, pulseSize + 20, 0xFD20);
+    }
+
+    if (currentAnim == ANIM_CRITICAL) {
+        // Simple red tint flash
+        // Just skip - the red color change is enough
+    }
+
     spr->pushSprite(spriteX, spriteY);
 }
 

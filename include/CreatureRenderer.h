@@ -88,6 +88,11 @@ private:
     float velX, velY;
     unsigned long lastMove;
     
+    // Optimization State
+    int prevSpriteX, prevSpriteY;
+    int prevInternalDrawX, prevInternalDrawY;
+    uint16_t prevColor;
+
     // LED State
     LedMode ledFxMode;
     uint16_t ledFxColor;
