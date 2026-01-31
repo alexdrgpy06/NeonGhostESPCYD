@@ -239,26 +239,31 @@ void drawBackground() {
     game.ghostDirty = true;
 }
 
-void drawButtons() {
+void drawMainButton(int x, const char* label, bool pressed = false) {
     uint16_t btnColor = petStats.getStageColor();
-    int x1 = 15, x2 = 85, x3 = 155;
+    uint16_t bgColor = pressed ? btnColor : C_DARK;
+    uint16_t txtColor = pressed ? C_DARK : btnColor;
+
+    tft.fillRoundRect(x, BUTTON_Y, BUTTON_W, BUTTON_H, 6, bgColor);
+    tft.drawRoundRect(x, BUTTON_Y, BUTTON_W, BUTTON_H, 6, btnColor);
     
-    tft.fillRoundRect(x1, BUTTON_Y, BUTTON_W, BUTTON_H, 6, C_DARK);
-    tft.drawRoundRect(x1, BUTTON_Y, BUTTON_W, BUTTON_H, 6, btnColor);
-    tft.setTextColor(btnColor, C_DARK);
+    tft.setTextColor(txtColor, bgColor);
     tft.setTextSize(1);
-    tft.setCursor(x1 + 20, BUTTON_Y + 18);
-    tft.print("FEED");
     
-    tft.fillRoundRect(x2, BUTTON_Y, BUTTON_W, BUTTON_H, 6, C_DARK);
-    tft.drawRoundRect(x2, BUTTON_Y, BUTTON_W, BUTTON_H, 6, btnColor);
-    tft.setCursor(x2 + 13, BUTTON_Y + 18);
-    tft.print("ATTACK");
+    // Center text mathematically
+    int textLen = strlen(label);
+    int textPixelW = textLen * 6;
+    int textX = x + (BUTTON_W - textPixelW) / 2;
     
-    tft.fillRoundRect(x3, BUTTON_Y, BUTTON_W, BUTTON_H, 6, C_DARK);
-    tft.drawRoundRect(x3, BUTTON_Y, BUTTON_W, BUTTON_H, 6, btnColor);
-    tft.setCursor(x3 + 18, BUTTON_Y + 18);
-    tft.print("MENU");
+    tft.setCursor(textX, BUTTON_Y + 18);
+    tft.print(label);
+}
+
+void drawButtons() {
+    int x1 = 15, x2 = 85, x3 = 155;
+    drawMainButton(x1, "FEED");
+    drawMainButton(x2, "ATTACK");
+    drawMainButton(x3, "MENU");
 }
 
 void drawTopBar() {
@@ -832,12 +837,20 @@ void handleTouch(int tx, int ty) {
     if (ty >= BUTTON_Y) {
         if (tx >= 15 && tx < 85) {
             // FEED
+            drawMainButton(15, "FEED", true);
+            delay(100);
+            drawMainButton(15, "FEED", false);
+
             petStats.feed(20);
             petStats.addXP(XP_FEED);
             setStatus("FEEDING!", "+MP +HP", C_GREEN);
             creature.triggerAnimation(ANIM_EATING, 800);
         } else if (tx >= 85 && tx < 155) {
             // ATTACK - Execute random available ability
+            drawMainButton(85, "ATTACK", true);
+            delay(100);
+            drawMainButton(85, "ATTACK", false);
+
             int maxAbilities = petStats.stats.stage + 1;
             if (maxAbilities > ABILITY_COUNT) maxAbilities = ABILITY_COUNT;
             
@@ -871,6 +884,10 @@ void handleTouch(int tx, int ty) {
             }
         } else if (tx >= 155 && tx < 225) {
             // MENU
+            drawMainButton(155, "MENU", true);
+            delay(100);
+            drawMainButton(155, "MENU", false);
+
             game.inMenuView = true;
             game.menuScroll = 0;
             drawMenu();
