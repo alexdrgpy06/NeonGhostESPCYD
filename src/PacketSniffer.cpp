@@ -250,7 +250,7 @@ void PacketSniffer::loop() {
 
                 lastAttack = now;
                 pendingEvent = EVT_ATTACK;
-                eventDetails = "ZAP! " + String(networks[idx].ssid);
+                snprintf(eventDetails, sizeof(eventDetails), "ZAP! %s", networks[idx].ssid);
 
                 Serial.print("Attacked: ");
                 Serial.println(networks[idx].ssid);
@@ -267,7 +267,7 @@ CaptureEvent PacketSniffer::getNextEvent() {
 }
 
 String PacketSniffer::getEventDetails() {
-    return eventDetails;
+    return String(eventDetails);
 }
 
 int PacketSniffer::getNetworkCount() {
@@ -330,7 +330,7 @@ void PacketSniffer::parseBeacon(uint8_t* packet, uint16_t len) {
         // New network!
         addNetwork(bssid, ssid, -50, currentChannel);
         pendingEvent = EVT_NEW_NETWORK;
-        eventDetails = String(ssid);
+        snprintf(eventDetails, sizeof(eventDetails), "%s", ssid);
         Serial.print("[WiFi] New: ");
         Serial.println(ssid);
     }
@@ -353,7 +353,7 @@ void PacketSniffer::parseProbe(uint8_t* packet, uint16_t len) {
     if (strlen(ssid) > 0) {
         probeCount++;
         pendingEvent = EVT_PROBE;
-        eventDetails = String(ssid);
+        snprintf(eventDetails, sizeof(eventDetails), "%s", ssid);
     }
 }
 
@@ -392,7 +392,7 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 deauthCount++;
                 deauthDetected = true;
                 pendingEvent = EVT_DEAUTH;
-                eventDetails = "DEAUTH ATTACK";
+                strncpy(eventDetails, "DEAUTH ATTACK", sizeof(eventDetails));
                 savePacket = true;
                 break;
         }
@@ -400,21 +400,33 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
+        // Optimization: Check common offset (30) first to avoid loop
+        // Header (24) + LLC (6) = 30. EtherType is at 30, 31.
+        bool found = false;
+        if (len > 32 && packet[30] == 0x88 && packet[31] == 0x8E) {
+            found = true;
+        } else {
+             // Fallback: Scan likely offsets
+            for (int i = 24; i < len - 6 && i < 60; i++) {
+                if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+                    found = true;
+                    break;
                 }
-                break;
+            }
+        }
+
+        if (found) {
+            handshakeCount++;
+            handshakeDetected = true;
+            pendingEvent = EVT_HANDSHAKE;
+            strncpy(eventDetails, "WPA HANDSHAKE", sizeof(eventDetails));
+            savePacket = true;
+
+            // Mark network as having handshake
+            uint8_t* bssid = &packet[16];
+            int idx = findNetwork(bssid);
+            if (idx >= 0) {
+                networks[idx].hasHandshake = true;
             }
         }
     }
