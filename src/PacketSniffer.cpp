@@ -400,21 +400,29 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
-                }
-                break;
+        bool found = false;
+        // Check valid LLC/SNAP offsets for EAPOL (0x888E)
+        // Header lengths: 24 (Std), 26 (QoS), 30 (4-addr), 32 (4-addr QoS)
+        // EtherType is at Header + 6
+        if ((len > 31 && packet[30] == 0x88 && packet[31] == 0x8E) ||
+            (len > 33 && packet[32] == 0x88 && packet[33] == 0x8E) ||
+            (len > 37 && packet[36] == 0x88 && packet[37] == 0x8E) ||
+            (len > 39 && packet[38] == 0x88 && packet[39] == 0x8E)) {
+            found = true;
+        }
+
+        if (found) {
+            handshakeCount++;
+            handshakeDetected = true;
+            pendingEvent = EVT_HANDSHAKE;
+            eventDetails = "WPA HANDSHAKE";
+            savePacket = true;
+
+            // Mark network as having handshake
+            uint8_t* bssid = &packet[16];
+            int idx = findNetwork(bssid);
+            if (idx >= 0) {
+                networks[idx].hasHandshake = true;
             }
         }
     }
