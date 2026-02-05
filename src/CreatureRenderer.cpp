@@ -370,17 +370,28 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
     lastDrawX = centerX - 64 + drawX;
     lastDrawY = centerY - 64 + drawY;
     
-    // SECOND PASS: Main pixels
+    // SECOND PASS: Main pixels (RLE Optimized)
+    // Bolt: Optimized from pixel-by-pixel to row-based RLE to reduce fillRect calls (SPI/RAM overhead)
     for (int row = 0; row < 24; row++) {
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        if (rowData == 0) continue; // Skip empty rows
+
         for (int col = 0; col < 24; col++) {
             if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale;
+                int startCol = col;
+                int len = 1;
+                // Find length of consecutive pixels
+                while ((col + 1 < 24) && ((rowData >> (23 - (col + 1))) & 0x01)) {
+                    len++;
+                    col++;
+                }
+
+                int px = drawX + startCol * scale;
                 int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+                spr->fillRect(px, py, len * scale, scale, color);
             }
         }
     }
