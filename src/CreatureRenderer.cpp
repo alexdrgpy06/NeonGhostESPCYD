@@ -376,11 +376,24 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        // Skip empty rows (Performance Optimization)
+        if (rowData == 0) continue;
+
         for (int col = 0; col < 24; col++) {
             if ((rowData >> (23 - col)) & 0x01) {
+                // RLE Optimization: Find consecutive pixels
+                int len = 1;
+                while (col + len < 24 && ((rowData >> (23 - (col + len))) & 0x01)) {
+                    len++;
+                }
+
+                // Draw run of pixels
                 int px = drawX + col * scale;
                 int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+                spr->fillRect(px, py, scale * len, scale, color);
+
+                // Skip the pixels we just drew
+                col += (len - 1);
             }
         }
     }
