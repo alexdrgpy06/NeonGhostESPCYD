@@ -370,17 +370,30 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
     lastDrawX = centerX - 64 + drawX;
     lastDrawY = centerY - 64 + drawY;
     
-    // SECOND PASS: Main pixels
+    // SECOND PASS: Main pixels (Optimized with RLE)
     for (int row = 0; row < 24; row++) {
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        if (rowData == 0) continue; // Skip empty rows for performance
+
         for (int col = 0; col < 24; col++) {
+            // Check for pixel presence
             if ((rowData >> (23 - col)) & 0x01) {
+                int runLength = 1;
+                // Calculate run length for consecutive pixels
+                while ((col + runLength) < 24 && ((rowData >> (23 - (col + runLength))) & 0x01)) {
+                    runLength++;
+                }
+
+                // Draw horizontal run as a single rectangle
                 int px = drawX + col * scale;
                 int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+                spr->fillRect(px, py, scale * runLength, scale, color);
+
+                // Skip processed pixels
+                col += (runLength - 1);
             }
         }
     }
