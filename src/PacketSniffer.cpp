@@ -400,8 +400,28 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+        // Optimized EAPOL check (O(1)) instead of linear search
+        int headerLen = 24;
+
+        // Check QoS (Subtype bit 3 is set for QoS Data)
+        if ((subtype & 0x08) == 0x08) {
+             headerLen += 2;
+             // Check for HT Control field (Order bit set in QoS frames)
+             if ((packet[1] & 0x80) != 0) {
+                 headerLen += 4;
+             }
+        }
+
+        // Check WDS (ToDS and FromDS both set in FC 2nd byte)
+        if ((packet[1] & 0x03) == 0x03) {
+            headerLen += 6;
+        }
+
+        // LLC/SNAP is 8 bytes. EtherType is at offset 6 in LLC/SNAP.
+        int ethTypeIndex = headerLen + 6;
+
+        if (len > ethTypeIndex + 1) {
+             if (packet[ethTypeIndex] == 0x88 && packet[ethTypeIndex + 1] == 0x8E) {
                 handshakeCount++;
                 handshakeDetected = true;
                 pendingEvent = EVT_HANDSHAKE;
@@ -409,13 +429,13 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 savePacket = true;
                 
                 // Mark network as having handshake
+                // Note: packet[16] (Addr3) is not always BSSID but kept for consistency with legacy logic
                 uint8_t* bssid = &packet[16];
                 int idx = findNetwork(bssid);
                 if (idx >= 0) {
                     networks[idx].hasHandshake = true;
                 }
-                break;
-            }
+             }
         }
     }
     
