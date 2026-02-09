@@ -589,7 +589,7 @@ void drawMenu() {
     tft.setTextColor(C_CYAN, C_BG);
     tft.setCursor(10, y);
     tft.print("== STATS ==");
-    y += 14;
+    y += 12;
     
     tft.setTextColor(C_WHITE, C_BG);
     tft.setCursor(10, y);
@@ -614,7 +614,7 @@ void drawMenu() {
     tft.print(petStats.stats.xp);
     tft.print("/");
     tft.print(petStats.stats.xpMax);
-    y += 14;
+    y += 12;
     
     // Network stats
     tft.setTextColor(C_GREEN, C_BG);
@@ -629,14 +629,14 @@ void drawMenu() {
     tft.setCursor(130, y);
     tft.print("HS:");
     tft.print(wifiSniffer.handshakeCount);
-    y += 18;
+    y += 16;
     
     // Attacks Section - show all with availability (increased to 11 items to fill screen)
     uint16_t themeColor = petStats.getStageColor();
     tft.setTextColor(themeColor, C_BG);
     tft.setCursor(10, y);
-    tft.print("== ATTACKS ==");
-    y += 14;
+    tft.print("== ATTACKS [COST] ==");
+    y += 12;
     
     int stage = petStats.stats.stage;
     int visibleCount = 0;
@@ -664,15 +664,15 @@ void drawMenu() {
             if (!isUnlocked) {
                 tft.setTextColor(C_GREY, bg);
                 tft.setCursor(5, y);
-                tft.print("X");
+                tft.print("L");
             } else if (canAfford) {
                 tft.setTextColor(themeColor, bg);
                 tft.setCursor(5, y);
-                tft.print("*");
+                tft.print(">");
             } else {
                 tft.setTextColor(C_RED, bg);
                 tft.setCursor(5, y);
-                tft.print("-");
+                tft.print("!");
             }
             
             // Attack name (Unified Color)
@@ -692,6 +692,31 @@ void drawMenu() {
     // Fill any remaining space before buttons with BG
     if (y < 270) {
         tft.fillRect(0, y, 240, 270 - y, C_BG);
+    }
+
+    // Legend
+    if (y < 260) {
+        int ly = y + 5;
+        tft.setTextSize(1);
+
+        // > Ready
+        tft.setTextColor(themeColor, C_BG);
+        tft.setCursor(30, ly);
+        tft.print(">");
+        tft.setTextColor(C_GREY, C_BG);
+        tft.print(" Ready   ");
+
+        // ! Low MP
+        tft.setTextColor(C_RED, C_BG);
+        tft.print("!");
+        tft.setTextColor(C_GREY, C_BG);
+        tft.print(" Low MP   ");
+
+        // L Locked
+        tft.setTextColor(C_GREY, C_BG);
+        tft.print("L");
+        tft.setTextColor(C_GREY, C_BG);
+        tft.print(" Locked");
     }
     
     // Bottom buttons - simplified
