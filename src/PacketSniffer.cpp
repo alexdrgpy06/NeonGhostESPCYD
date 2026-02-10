@@ -400,8 +400,30 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+        // Optimization: Use O(1) header offset calculation instead of O(N) loop scan
+        // This reduces ISR execution time significantly for every data packet.
+
+        uint8_t flags = packet[1];
+        int headerLen = 24;
+
+        // WDS (ToDS=1, FromDS=1) - Add Address 4
+        if ((flags & 0x03) == 0x03) headerLen += 6;
+
+        // QoS Data (Subtype bit 3 is set for 8-15)
+        if (subtype & 0x08) {
+            headerLen += 2; // QoS Control
+            // HT Control (Order bit set in QoS Data)
+            if (flags & 0x80) headerLen += 4;
+        }
+
+        // Check for EAPOL in LLC/SNAP header (AA AA 03 ... 88 8E)
+        // Offset for EtherType is headerLen + 6
+        if (len >= headerLen + 8) {
+            if (packet[headerLen] == 0xAA &&
+                packet[headerLen+1] == 0xAA &&
+                packet[headerLen+6] == 0x88 &&
+                packet[headerLen+7] == 0x8E) {
+
                 handshakeCount++;
                 handshakeDetected = true;
                 pendingEvent = EVT_HANDSHAKE;
@@ -414,7 +436,6 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 if (idx >= 0) {
                     networks[idx].hasHandshake = true;
                 }
-                break;
             }
         }
     }
