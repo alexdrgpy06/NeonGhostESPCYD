@@ -400,21 +400,40 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
-                }
-                break;
+        // Optimization: Skip encrypted data frames (Protected bit set)
+        if (packet[1] & 0x40) return;
+
+        // Optimization: Calculate LLC/SNAP offset (O(1)) instead of linear scan
+        // Header length starts at 24 bytes
+        int offset = 24;
+
+        // QoS Control Field? (Subtype bit 3 is set)
+        if ((subtype & 0x08)) offset += 2;
+
+        // HT Control Field? (Order bit is set in Frame Control)
+        if (packet[1] & 0x80) offset += 4;
+
+        // 4-Address Frame? (ToDS=1 and FromDS=1)
+        if ((packet[1] & 0x03) == 0x03) offset += 6;
+
+        // Safety check: Ensure we don't read past buffer
+        if (offset + 8 > len) return;
+
+        // Check for EAPOL EtherType (0x888E) in LLC/SNAP header
+        // LLC Header: AA AA 03 00 00 00 [Type(2)]
+        // Type is at offset + 6
+        if (packet[offset + 6] == 0x88 && packet[offset + 7] == 0x8E) {
+            handshakeCount++;
+            handshakeDetected = true;
+            pendingEvent = EVT_HANDSHAKE;
+            eventDetails = "WPA HANDSHAKE";
+            savePacket = true;
+
+            // Mark network as having handshake
+            uint8_t* bssid = &packet[16];
+            int idx = findNetwork(bssid);
+            if (idx >= 0) {
+                networks[idx].hasHandshake = true;
             }
         }
     }
