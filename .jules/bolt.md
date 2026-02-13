@@ -1,0 +1,3 @@
+## 2025-02-27 - [WiFi Sniffer Optimization]
+**Learning:** In 802.11 promiscuous mode, blindly scanning packet payloads for cleartext EAPOL headers (0x888E) consumes significant CPU cycles because most modern traffic is encrypted (Protected bit set).
+**Action:** Always check the Frame Control "Protected" bit (`packet[1] & 0x40`) before deep packet inspection. EAPOL frames (which we care about for handshakes) are data frames but are NOT encrypted at the 802.11 link layer (Protected bit is 0), so we can safely skip any packet with this bit set. This avoids processing >90% of traffic. Also, avoid `String` in packet callbacks to prevent heap fragmentation.
