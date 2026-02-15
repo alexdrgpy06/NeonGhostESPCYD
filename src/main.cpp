@@ -478,6 +478,27 @@ void fullReset() {
 // =============================================================================
 // LIST VIEWS
 // =============================================================================
+void drawNavButton(int x, const char* label, uint16_t color, bool pressed = false) {
+    uint16_t bg = pressed ? color : C_PANEL;
+    uint16_t fg = pressed ? C_PANEL : C_WHITE;
+
+    // Clear/Fill background
+    if (pressed) {
+        tft.fillRoundRect(x, 293, 60, 22, 4, bg);
+    } else {
+        tft.fillRoundRect(x, 293, 60, 22, 4, C_PANEL);
+        tft.drawRoundRect(x, 293, 60, 22, 4, color);
+    }
+
+    tft.setTextColor(fg, bg);
+    tft.setTextSize(1);
+
+    // Center text
+    int textX = x + (60 - (strlen(label) * 6)) / 2;
+    tft.setCursor(textX, 293 + 7);
+    tft.print(label);
+}
+
 void drawListHeader(bool isWifi) {
     tft.fillScreen(C_BG);
     tft.fillRect(0, 0, 240, 35, C_PANEL);
@@ -511,14 +532,9 @@ void drawListHeader(bool isWifi) {
     
     tft.fillRect(0, 290, 240, 30, C_PANEL);
     uint16_t btnColor = isWifi ? C_GREEN : C_BLUE;
-    tft.drawRoundRect(15, 293, 60, 22, 4, btnColor);
-    tft.drawRoundRect(90, 293, 60, 22, 4, btnColor);
-    tft.drawRoundRect(165, 293, 60, 22, 4, btnColor);
-    
-    tft.setTextColor(C_WHITE, C_PANEL);
-    tft.setCursor(35, 299); tft.print("UP");
-    tft.setCursor(105, 299); tft.print("BACK");
-    tft.setCursor(180, 299); tft.print("DOWN");
+    drawNavButton(15, "UP", btnColor, false);
+    drawNavButton(90, "BACK", btnColor, false);
+    drawNavButton(165, "DOWN", btnColor, false);
     
     tft.drawFastHLine(0, 290, 240, btnColor);
 }
@@ -807,13 +823,24 @@ void handleTouch(int tx, int ty) {
             game.showingWifi = true; // Always WiFi
             drawWifiList();
         } else if (ty > 285) {
+            uint16_t btnColor = game.showingWifi ? C_GREEN : C_BLUE;
+
             if (tx < 80) {
+                drawNavButton(15, "UP", btnColor, true);
+                delay(50);
+                drawNavButton(15, "UP", btnColor, false);
                 game.listScroll = max(0, game.listScroll - 6);
             } else if (tx > 160) {
+                drawNavButton(165, "DOWN", btnColor, true);
+                delay(50);
+                drawNavButton(165, "DOWN", btnColor, false);
                 // Only WiFi items matter now
                 int maxItems = wifiSniffer.getNetworkCount();
                 game.listScroll = min(game.listScroll + 6, max(0, maxItems - 11));
             } else {
+                drawNavButton(90, "BACK", btnColor, true);
+                delay(50);
+                drawNavButton(90, "BACK", btnColor, false);
                 game.inListView = false;
                 drawBackground();
                 return;
