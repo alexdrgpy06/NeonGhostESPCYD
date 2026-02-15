@@ -93,7 +93,7 @@ private:
     
     // Event queue
     volatile CaptureEvent pendingEvent;
-    String eventDetails;
+    char eventDetails[64];
     
     // Tracking
     NetworkInfo networks[MAX_NETWORKS];

@@ -36,6 +36,7 @@ PacketSniffer::PacketSniffer() {
     attackMode = false;
     attackStart = 0;
     attackType = 0;
+    memset(eventDetails, 0, sizeof(eventDetails));
 }
 
 void PacketSniffer::setTechLevel(int level) {
@@ -250,7 +251,7 @@ void PacketSniffer::loop() {
 
                 lastAttack = now;
                 pendingEvent = EVT_ATTACK;
-                eventDetails = "ZAP! " + String(networks[idx].ssid);
+                snprintf(eventDetails, sizeof(eventDetails), "ZAP! %s", networks[idx].ssid);
 
                 Serial.print("Attacked: ");
                 Serial.println(networks[idx].ssid);
@@ -330,7 +331,8 @@ void PacketSniffer::parseBeacon(uint8_t* packet, uint16_t len) {
         // New network!
         addNetwork(bssid, ssid, -50, currentChannel);
         pendingEvent = EVT_NEW_NETWORK;
-        eventDetails = String(ssid);
+        strncpy(eventDetails, ssid, sizeof(eventDetails));
+        eventDetails[sizeof(eventDetails)-1] = 0;
         Serial.print("[WiFi] New: ");
         Serial.println(ssid);
     }
@@ -353,7 +355,8 @@ void PacketSniffer::parseProbe(uint8_t* packet, uint16_t len) {
     if (strlen(ssid) > 0) {
         probeCount++;
         pendingEvent = EVT_PROBE;
-        eventDetails = String(ssid);
+        strncpy(eventDetails, ssid, sizeof(eventDetails));
+        eventDetails[sizeof(eventDetails)-1] = 0;
     }
 }
 
@@ -392,7 +395,7 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 deauthCount++;
                 deauthDetected = true;
                 pendingEvent = EVT_DEAUTH;
-                eventDetails = "DEAUTH ATTACK";
+                strncpy(eventDetails, "DEAUTH ATTACK", sizeof(eventDetails));
                 savePacket = true;
                 break;
         }
@@ -400,12 +403,15 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
+        // Optimization: Skip encrypted frames (Protected bit set)
+        if (packet[1] & 0x40) return;
+
         for (int i = 24; i < len - 6 && i < 60; i++) {
             if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
                 handshakeCount++;
                 handshakeDetected = true;
                 pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
+                strncpy(eventDetails, "WPA HANDSHAKE", sizeof(eventDetails));
                 savePacket = true;
                 
                 // Mark network as having handshake
