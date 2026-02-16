@@ -406,8 +406,29 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
         // Optimization: Skip encrypted frames (Protected bit set)
         if (packet[1] & 0x40) return;
 
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+        // Optimization: Check exact offsets instead of scanning loop (O(1) vs O(N))
+        // This avoids false positives from MAC addresses (e.g. in Addr4) and saves cycles
+        int offset = 24;
+
+        // Check for Address 4 (ToDS=1 and FromDS=1)
+        if ((packet[1] & 0x03) == 0x03) {
+            offset += 6;
+        }
+
+        // Check for QoS Control (Subtype bit 3 is set -> 8-15)
+        if (subtype & 0x08) {
+            offset += 2;
+            // Check for HT Control (Order bit is set in Frame Control byte 1)
+            // Only valid if QoS bit is set.
+            if (packet[1] & 0x80) {
+                offset += 4;
+            }
+        }
+
+        // Check for LLC SNAP header: AA AA 03 00 00 00 88 8E
+        // We look for 88 8E at offset + 6
+        if (offset + 7 < len) {
+            if (packet[offset + 6] == 0x88 && packet[offset + 7] == 0x8E) {
                 handshakeCount++;
                 handshakeDetected = true;
                 pendingEvent = EVT_HANDSHAKE;
@@ -420,7 +441,6 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 if (idx >= 0) {
                     networks[idx].hasHandshake = true;
                 }
-                break;
             }
         }
     }
