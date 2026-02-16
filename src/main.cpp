@@ -1,13 +1,7 @@
 /**
- * ╔═══════════════════════════════════════════════════════════════╗
- * ║                    NEONGHOST v7.0                             ║
- * ║              Hacker Pet for ESP32-CYD                         ║
- * ║                                                               ║
- * ║   Features: WiFi Sniffing, BLE Scanning, RGB LED Sync         ║
- * ║   15 Evolution Stages, Death/Revive System                    ║
- * ║                                                               ║
- * ║                     by Alex R.                                ║
- * ╚═══════════════════════════════════════════════════════════════╝
+ * Author: Alejandro Ramírez
+ * Project: NeonGhostESPCYD
+ * Logic: Core firmware logic for the NeonGhost hacker pet on ESP32-CYD. \n * Handles WiFi sniffing, BLE scanning, real-time creature rendering, \n * and evolutionary pet stat management with hardware-level orchestration.
  */
 #include <Arduino.h>
 #include <SPI.h>
