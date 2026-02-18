@@ -400,21 +400,49 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
-                }
-                break;
+        // Optimization: O(1) Header Parsing (skip encrypted, check specific offsets)
+
+        // 1. Skip Encrypted Frames (Protected bit set)
+        if (packet[1] & 0x40) return;
+
+        // 2. Calculate Header Length
+        int offset = 24; // Base header length
+
+        // 4-Address Frame (ToDS & FromDS both set)
+        if ((packet[1] & 0x03) == 0x03) {
+            offset += 6;
+        }
+
+        // QoS Control Field (Subtype bit 3 set -> Subtypes 8-15)
+        bool isQoS = (subtype & 0x08);
+        if (isQoS) {
+            offset += 2;
+        }
+
+        // HT Control Field (Order bit set in QoS Data frame)
+        if (isQoS && (packet[1] & 0x80)) {
+            offset += 4;
+        }
+
+        // Safety check
+        if (len < offset + 8) return;
+
+        // 3. Check for EAPOL LLC/SNAP Header (AA AA 03 00 00 00 88 8E)
+        if (packet[offset] == 0xAA && packet[offset+1] == 0xAA && packet[offset+2] == 0x03 &&
+            packet[offset+3] == 0x00 && packet[offset+4] == 0x00 && packet[offset+5] == 0x00 &&
+            packet[offset+6] == 0x88 && packet[offset+7] == 0x8E) {
+
+            handshakeCount++;
+            handshakeDetected = true;
+            pendingEvent = EVT_HANDSHAKE;
+            eventDetails = "WPA HANDSHAKE";
+            savePacket = true;
+
+            // Mark network as having handshake
+            uint8_t* bssid = &packet[16]; // Legacy: BSSID at offset 16
+            int idx = findNetwork(bssid);
+            if (idx >= 0) {
+                networks[idx].hasHandshake = true;
             }
         }
     }
