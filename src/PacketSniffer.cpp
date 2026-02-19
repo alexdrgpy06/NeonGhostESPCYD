@@ -400,21 +400,38 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
-                }
-                break;
+        // Optimization: Skip encrypted frames (Protected bit 6 of Frame Control byte 1)
+        if (packet[1] & 0x40) return;
+
+        int offset = 24; // Minimum header size
+
+        // Check for 4th Address (ToDS=1 and FromDS=1)
+        if ((packet[1] & 0x03) == 0x03) offset += 6;
+
+        // Check for QoS (Subtype bit 3 is set for QoS Data frames)
+        if (subtype & 0x08) offset += 2;
+
+        // Check for HT Control (Order bit set)
+        if (packet[1] & 0x80) offset += 4;
+
+        // Check bounds and EAPOL EtherType (0x888E) inside LLC/SNAP
+        // LLC/SNAP header is 8 bytes: AA AA 03 00 00 00 [Type]
+        // Type is at offset + 6
+        if (offset + 7 < len &&
+            packet[offset + 6] == 0x88 && packet[offset + 7] == 0x8E) {
+
+            handshakeCount++;
+            handshakeDetected = true;
+            pendingEvent = EVT_HANDSHAKE;
+            eventDetails = "WPA HANDSHAKE";
+            savePacket = true;
+
+            // Mark network as having handshake
+            // Legacy behavior: BSSID at 16
+            uint8_t* bssid = &packet[16];
+            int idx = findNetwork(bssid);
+            if (idx >= 0) {
+                networks[idx].hasHandshake = true;
             }
         }
     }
