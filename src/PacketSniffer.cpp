@@ -400,8 +400,28 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+        // Optimized O(1) EAPOL detection
+        // 1. Check Protected bit (encrypted payload cannot be parsed)
+        if ((packet[1] & 0x40) == 0) {
+            int offset = 24; // Base header
+
+            // Check for Address 4 (ToDS & FromDS both set)
+            if ((packet[1] & 0x03) == 0x03) offset += 6;
+
+            // Check for QoS Control (Subtype bit 3 set)
+            bool isQoS = (subtype & 0x08);
+            if (isQoS) offset += 2;
+
+            // Check for HT Control (Order bit set in QoS)
+            if (isQoS && (packet[1] & 0x80)) offset += 4;
+
+            // Check bounds and LLC/SNAP header for EAPOL (AA AA 03 00 00 00 88 8E)
+            if (len >= offset + 8 &&
+                packet[offset] == 0xAA && packet[offset+1] == 0xAA &&
+                packet[offset+2] == 0x03 && packet[offset+3] == 0x00 &&
+                packet[offset+4] == 0x00 && packet[offset+5] == 0x00 &&
+                packet[offset+6] == 0x88 && packet[offset+7] == 0x8E) {
+
                 handshakeCount++;
                 handshakeDetected = true;
                 pendingEvent = EVT_HANDSHAKE;
@@ -414,7 +434,6 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 if (idx >= 0) {
                     networks[idx].hasHandshake = true;
                 }
-                break;
             }
         }
     }
