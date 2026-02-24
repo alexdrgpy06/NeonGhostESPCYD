@@ -400,8 +400,34 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+        // OPTIMIZATION: Check 'Protected' bit (Bit 6 of Byte 1)
+        // If set, payload is encrypted, so we can't see EtherType anyway.
+        if (packet[1] & 0x40) return;
+
+        // Calculate offset to LLC/SNAP header
+        // Base 802.11 header is 24 bytes
+        int offset = 24;
+
+        // Address 4 present? (ToDS and FromDS both set)
+        if ((packet[1] & 0x03) == 0x03) {
+            offset += 6;
+        }
+
+        // QoS Control present? (Subtype bit 7 set in Byte 0)
+        // Subtype is bits 4-7 of Byte 0.
+        if (packet[0] & 0x80) { // Check QoS bit (Bit 3 of subtype)
+             offset += 2;
+        }
+
+        // HT Control present? (Order bit, Bit 7 of Byte 1)
+        if (packet[1] & 0x80) {
+            offset += 4;
+        }
+
+        // Check bounds (Offset + LLC(8) must fit in len)
+        if (offset + 8 <= len) {
+            // Check EtherType (Offset + 6 in LLC/SNAP header)
+            if (packet[offset + 6] == 0x88 && packet[offset + 7] == 0x8E) {
                 handshakeCount++;
                 handshakeDetected = true;
                 pendingEvent = EVT_HANDSHAKE;
@@ -414,7 +440,6 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 if (idx >= 0) {
                     networks[idx].hasHandshake = true;
                 }
-                break;
             }
         }
     }
