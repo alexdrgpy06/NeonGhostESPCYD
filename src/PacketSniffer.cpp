@@ -400,21 +400,46 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
-                }
-                break;
+        // Optimization: Skip encrypted frames (Protected bit 6 of byte 1)
+        if (packet[1] & 0x40) return;
+
+        // Calculate header length dynamically for O(1) access
+        // Base header: 24 bytes (FC, Dur, A1, A2, A3, Seq)
+        int offset = 24;
+
+        // Address 4 field present? (ToDS=1 and FromDS=1)
+        if ((packet[1] & 0x03) == 0x03) {
+            offset += 6;
+        }
+
+        // QoS Control field present? (Subtype bit 7 is 1, i.e. subtype >= 8)
+        if (subtype & 0x08) {
+            offset += 2;
+        }
+
+        // HT Control field present? (Order bit is 1)
+        if (packet[1] & 0x80) {
+            offset += 4;
+        }
+
+        // Check bounds (Offset + LLC/SNAP header length 8)
+        if (len < offset + 8) return;
+
+        // Check for LLC/SNAP header (8 bytes): DSAP(1)+SSAP(1)+Ctrl(1)+OUI(3)+Type(2)
+        // We look for Type = 0x888E (EAPOL) at offset + 6
+        if (packet[offset + 6] == 0x88 && packet[offset + 7] == 0x8E) {
+            handshakeCount++;
+            handshakeDetected = true;
+            pendingEvent = EVT_HANDSHAKE;
+            eventDetails = "WPA HANDSHAKE";
+            savePacket = true;
+
+            // Mark network as having handshake
+            // Legacy: BSSID extraction from offset 16 (Address 3)
+            uint8_t* bssid = &packet[16];
+            int idx = findNetwork(bssid);
+            if (idx >= 0) {
+                networks[idx].hasHandshake = true;
             }
         }
     }
