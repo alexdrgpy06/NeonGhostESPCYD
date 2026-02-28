@@ -400,21 +400,40 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
+        // Skip encrypted frames (Protected bit 0x40 is set), EAPOL is always plaintext
+        if (!(packet[1] & 0x40)) {
+            // O(1) header length calculation instead of linear scan
+            uint16_t headerLen = 24;
+            bool toDS = packet[1] & 0x01;
+            bool fromDS = packet[1] & 0x02;
+
+            // Address 4
+            if (toDS && fromDS) headerLen += 6;
+
+            // QoS Control and HT Control
+            if (subtype & 0x08) {
+                headerLen += 2; // QoS Control field
+                // HT Control is only present if it's a QoS Data frame AND the Order bit is set
+                if (packet[1] & 0x80) headerLen += 4;
+            }
+
+            // Check if packet is long enough to contain the LLC header + EtherType
+            if (len >= headerLen + 8) {
+                // Check for 0x888E (EAPOL) EtherType at LLC + 6 bytes
+                if (packet[headerLen + 6] == 0x88 && packet[headerLen + 7] == 0x8E) {
+                    handshakeCount++;
+                    handshakeDetected = true;
+                    pendingEvent = EVT_HANDSHAKE;
+                    eventDetails = "WPA HANDSHAKE";
+                    savePacket = true;
+
+                    // Mark network as having handshake
+                    uint8_t* bssid = &packet[16];
+                    int idx = findNetwork(bssid);
+                    if (idx >= 0) {
+                        networks[idx].hasHandshake = true;
+                    }
                 }
-                break;
             }
         }
     }

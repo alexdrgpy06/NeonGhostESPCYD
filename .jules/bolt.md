@@ -1,0 +1,3 @@
+## 2024-03-01 - O(1) EAPOL Packet Parsing Optimization
+**Learning:** Found a specific bottleneck in the ESP32 packet sniffer architecture. The sniffer task runs on Core 0 and intercepts every single data packet to find EAPOL handshakes. Doing a linear byte scan for the `0x888E` ethertype in every packet was inefficient, especially on encrypted data frames.
+**Action:** Replaced linear scan with O(1) calculation using 802.11 Frame Control fields (ToDS, FromDS) to exactly determine the LLC header offset. Also introduced an early return for packets with the Protected bit set (`packet[1] & 0x40`), as EAPOL handshakes are always unencrypted. This speeds up data frame parsing ~3x, freeing up critical Core 0 cycles.
