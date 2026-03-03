@@ -400,8 +400,31 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+        // Bolt Optimization: O(1) direct offset calculation for EAPOL
+        bool isProtected = (packet[1] & 0x40) != 0;
+
+        // Skip encrypted frames immediately
+        if (!isProtected) {
+            int headerLen = 24; // Base MAC header (3 addresses)
+
+            // Address 4 (+6 bytes) if ToDS and FromDS
+            bool toDS = (packet[1] & 0x01) != 0;
+            bool fromDS = (packet[1] & 0x02) != 0;
+            if (toDS && fromDS) headerLen += 6;
+
+            // QoS Control (+2 bytes)
+            bool isQoS = (subtype & 0x08) != 0;
+            if (isQoS) {
+                headerLen += 2;
+                // HT Control (+4 bytes) if QoS Data AND Order bit is set
+                bool hasHT = (packet[1] & 0x80) != 0;
+                if (hasHT) headerLen += 4;
+            }
+
+            // LLC/SNAP is usually 8 bytes. EtherType is at offset headerLen + 6
+            int eapolOffset = headerLen + 6;
+
+            if (eapolOffset + 1 < len && packet[eapolOffset] == 0x88 && packet[eapolOffset + 1] == 0x8E) {
                 handshakeCount++;
                 handshakeDetected = true;
                 pendingEvent = EVT_HANDSHAKE;
@@ -409,12 +432,12 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
                 savePacket = true;
                 
                 // Mark network as having handshake
+                // Legacy behavior: BSSID fixed at offset 16
                 uint8_t* bssid = &packet[16];
                 int idx = findNetwork(bssid);
                 if (idx >= 0) {
                     networks[idx].hasHandshake = true;
                 }
-                break;
             }
         }
     }
