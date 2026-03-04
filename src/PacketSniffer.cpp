@@ -400,21 +400,51 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
+        // Optimization: O(1) Header parsing instead of linear scan.
+        // Skip encrypted frames (Protected bit is bit 6 of Frame Control byte 1)
+        if ((packet[1] & 0x40) == 0) {
+            int headerLen = 24; // Base MAC header length
+
+            // ToDS and FromDS bits are in Frame Control byte 1 (bits 0 and 1)
+            uint8_t toDS = packet[1] & 0x01;
+            uint8_t fromDS = (packet[1] >> 1) & 0x01;
+
+            // Address 4 is present if both ToDS and FromDS are set
+            if (toDS && fromDS) {
+                headerLen += 6;
+            }
+
+            // QoS Control is present if Subtype bit 3 is set (e.g., QoS Data subtype 8)
+            if (subtype & 0x08) {
+                headerLen += 2;
+                // HT Control is present if Order bit (bit 7 of Frame Control byte 1) is set AND it is a QoS frame
+                if (packet[1] & 0x80) {
+                    headerLen += 4;
                 }
-                break;
+            }
+
+            // 802.11 frames encapsulate EAPOL within LLC/SNAP headers (8 bytes: LLC + SNAP OUI + SNAP Type)
+            // Or often EAPOL is mapped to ethertype 0x888E right after the header or SNAP
+            // The LLC SNAP header is 6 bytes (DSAP, SSAP, Ctrl, OUI) followed by 2 bytes Ethertype
+            int llcLen = 6;
+
+            int offset = headerLen + llcLen;
+
+            if (offset + 1 < len) {
+                if (packet[offset] == 0x88 && packet[offset + 1] == 0x8E) {
+                    handshakeCount++;
+                    handshakeDetected = true;
+                    pendingEvent = EVT_HANDSHAKE;
+                    eventDetails = "WPA HANDSHAKE";
+                    savePacket = true;
+
+                    // Mark network as having handshake
+                    uint8_t* bssid = &packet[16];
+                    int idx = findNetwork(bssid);
+                    if (idx >= 0) {
+                        networks[idx].hasHandshake = true;
+                    }
+                }
             }
         }
     }
