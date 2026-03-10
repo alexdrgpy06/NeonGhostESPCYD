@@ -50,15 +50,15 @@ bool SDManager::begin() {
 
 String SDManager::getNextFileName() {
   int i = 0;
-  String fileName;
+  char buf[32];
   while (true) {
-    fileName = "/capture_" + String(i) + ".pcap";
-    if (!SD.exists(fileName)) {
+    snprintf(buf, sizeof(buf), "/capture_%d.pcap", i);
+    if (!SD.exists(buf)) {
       break;
     }
     i++;
   }
-  return fileName;
+  return String(buf);
 }
 
 void SDManager::openNewPCAP() {
@@ -98,10 +98,14 @@ void SDManager::addPacket(uint8_t *packet, uint32_t len) {
   uint32_t headerSize = sizeof(PcapPacketHeader);
   uint32_t totalSize = headerSize + len;
 
+  // Local copies of volatile indices to minimize memory operations
+  uint32_t local_head = head;
+  uint32_t local_tail = tail;
+
   // Calculate free space
   // Free space = (tail - head - 1 + BUF_SIZE) % BUF_SIZE
   // Note: We keep 1 byte empty to distinguish full vs empty (if head==tail)
-  uint32_t freeSpace = (tail - head - 1 + BUF_SIZE) % BUF_SIZE;
+  uint32_t freeSpace = (local_tail - local_head - 1 + BUF_SIZE) % BUF_SIZE;
 
   if (totalSize > freeSpace) {
     // Buffer Overflow - Drop Packet
@@ -118,31 +122,34 @@ void SDManager::addPacket(uint8_t *packet, uint32_t len) {
 
   // Copy Header
   // Handle Wrap-around
-  if (head + headerSize <= BUF_SIZE) {
-      memcpy(&buffer[head], &header, headerSize);
-      head += headerSize;
+  if (local_head + headerSize <= BUF_SIZE) {
+      memcpy(&buffer[local_head], &header, headerSize);
+      local_head += headerSize;
   } else {
       // Split copy
-      uint32_t part1 = BUF_SIZE - head;
+      uint32_t part1 = BUF_SIZE - local_head;
       uint32_t part2 = headerSize - part1;
-      memcpy(&buffer[head], &header, part1);
+      memcpy(&buffer[local_head], &header, part1);
       memcpy(&buffer[0], ((uint8_t*)&header) + part1, part2);
-      head = part2;
+      local_head = part2;
   }
-  if (head == BUF_SIZE) head = 0; // Fix edge case if exact match
+  if (local_head == BUF_SIZE) local_head = 0; // Fix edge case if exact match
 
   // Copy Payload
-  if (head + len <= BUF_SIZE) {
-      memcpy(&buffer[head], packet, len);
-      head += len;
+  if (local_head + len <= BUF_SIZE) {
+      memcpy(&buffer[local_head], packet, len);
+      local_head += len;
   } else {
-      uint32_t part1 = BUF_SIZE - head;
+      uint32_t part1 = BUF_SIZE - local_head;
       uint32_t part2 = len - part1;
-      memcpy(&buffer[head], packet, part1);
+      memcpy(&buffer[local_head], packet, part1);
       memcpy(&buffer[0], packet + part1, part2);
-      head = part2;
+      local_head = part2;
   }
-  if (head == BUF_SIZE) head = 0;
+  if (local_head == BUF_SIZE) local_head = 0;
+
+  // Write back volatile head once at the end
+  head = local_head;
 }
 
 // Task Safe: Writes data from Ring Buffer to SD
