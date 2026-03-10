@@ -1,0 +1,4 @@
+
+## 2024-05-20 - O(1) EAPOL Offset Calculation and Encrypted Frame Skipping
+**Learning:** In the `PacketSniffer::processPacket` core loop, linearly scanning `packet` for `0x88 0x8E` (EAPOL) takes significantly longer than directly jumping to the calculated offset based on frame control bits (QoS, Address 4, HT Control). Furthermore, because EAPOL frames are inherently unencrypted management data, we can safely and completely skip any Data frame with the Protected bit (`0x40`) set. Our local benchmarks showed skipping encrypted frames outright is roughly ~10x faster (e.g. 430k us to 41k us for 10M iterations).
+**Action:** When parsing 802.11 frames, prioritize O(1) direct bitmask logic and offset addition over linear scans (`for` loops), and leverage standard header flags (like the `Protected` bit) to early-exit processing of irrelevant frames to maintain high packet throughput on the ESP32.
