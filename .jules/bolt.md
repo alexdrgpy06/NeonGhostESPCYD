@@ -1,0 +1,3 @@
+## 2024-11-20 - [O(1) EAPOL Packet Parsing]
+**Learning:** Packet sniffers (like on the ESP32) process thousands of packets. Linearly scanning raw payloads for `0x88 0x8E` (EAPOL) is an inefficient `O(n)` process and dangerous because an encrypted data frame could randomly contain those bytes, triggering false positives.
+**Action:** When parsing 802.11 frames, explicitly check the Frame Control bits to skip encrypted frames (Protected bit). Calculate the precise offset to the SNAP/LLC header by accounting for variable-length 802.11 headers (WDS, QoS, HT Control). This transforms an `O(n)` linear scan into a safe `O(1)` direct lookup.
