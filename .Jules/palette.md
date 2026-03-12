@@ -1,0 +1,1 @@
+## 2026-03-12 - Interactive button feedback\n**Learning:** Immediate visual feedback (e.g., momentarily redrawing with inverted colors using a short delay) on physical touchscreens is critical to prevent users from repeatedly tapping buttons.\n**Action:** Add visual press feedback pattern `pressed=true`, `delay(50)`, `pressed=false` to interactive UI components.
