@@ -1,0 +1,3 @@
+## 2024-05-18 - Visual Feedback on Physical Touchscreens
+**Learning:** Immediate visual feedback (e.g., momentarily redrawing a button with inverted colors) is critical on physical touchscreens like the CYD to prevent users from repeatedly tapping buttons. Additionally, boundary checks for touch interaction must explicitly verify both the upper and lower boundaries (e.g., `ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H`) to accurately restrict active tap zones.
+**Action:** Always implement a 'press-wait-release' drawing pattern and strict boundary checks for all interactive touchscreen elements to enhance responsiveness and prevent multi-tapping.
