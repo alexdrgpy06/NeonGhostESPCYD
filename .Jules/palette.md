@@ -1,0 +1,3 @@
+## 2026-03-22 - [Add visual feedback for physical buttons]
+**Learning:** Immediate visual feedback on physical touchscreens is critical to prevent users from repeatedly tapping buttons. Touch interaction bounds checking must also explicitly verify both upper and lower boundaries to restrict active tap zones properly.
+**Action:** Implemented a 'press-wait-release' pattern for interactive UI buttons, drawing them with inverted colors momentarily, and ensured touch interaction bounds explicitly verify both boundaries.
