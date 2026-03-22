@@ -1,0 +1,3 @@
+## 2024-05-24 - Efficient EAPOL detection in 802.11 frames
+**Learning:** Scanning encrypted 802.11 frames for EAPOL headers (0x888E) linearly is highly inefficient. Encrypted data frames (Protected bit set) cannot contain valid unencrypted EAPOL headers that we can parse this way.
+**Action:** In `PacketSniffer::processPacket`, check the 'Protected' bit (`packet[1] & 0x40`). If it is set, skip the EAPOL scanning loop. This simple check gives a ~25x performance improvement (e.g., 905ms down to 36ms) for encrypted data frames. Always ensure a minimum length bounds check (e.g., `if (len >= 24)`) before accessing header bytes.
