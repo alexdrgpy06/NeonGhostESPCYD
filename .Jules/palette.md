@@ -1,0 +1,3 @@
+## 2024-03-26 - Immediate visual feedback on touch interactions
+**Learning:** Physical touchscreen hardware like the CYD (Cheap Yellow Display) feels sluggish without immediate visual feedback. Users may double-tap or think an action failed if there is no micro-interaction when a button is pressed.
+**Action:** Always implement a brief visual 'pressed' state (like an inverted button color) with a short `delay()` (e.g., 50ms) for physical touchscreen buttons to reassure the user that the tap was registered before executing the main logic. Also ensure touch bounds are explicitly checked on all edges (e.g., `ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H`).
