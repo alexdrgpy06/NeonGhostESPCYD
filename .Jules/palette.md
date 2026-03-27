@@ -1,0 +1,3 @@
+## 2024-05-24 - Hardware Button Interaction Pattern
+**Learning:** Immediate visual feedback is critical on physical touchscreens to prevent double-taps or perceived unresponsiveness. Furthermore, touch bounding boxes must be explicitly constrained on both axis (upper `ty >= BUTTON_Y` and lower `ty <= BUTTON_Y + BUTTON_H`) to accurately restrict the active tap zones, otherwise inputs below the intended button area are incorrectly registered as valid.
+**Action:** Always implement a press-wait-release sequence (invert color, delay briefly, restore color) for primary interactions and meticulously test both upper and lower boundaries for UI touch zones.
