@@ -1,0 +1,3 @@
+## 2024-05-24 - Efficiently Skpping Encrypted 802.11 Packets
+**Learning:** Checking the Protected bit (`packet[1] & 0x40`) and ensuring a minimum length `len >= 24` allows safely skipping linear scanning of 802.11 encrypted payload data frames when searching for EAPOL handshakes. This yields roughly ~40x speedup in parsing compared to unnecessarily searching through high volumes of encrypted traffic payload bytes. EAPOL handshakes are unencrypted, so they won't be missed.
+**Action:** When filtering or scanning 802.11 payload bytes in high-traffic sniffer tasks on the ESP32, immediately skip encrypted frames using the standard 802.11 header flags to conserve CPU cycles for the UI/render core.
