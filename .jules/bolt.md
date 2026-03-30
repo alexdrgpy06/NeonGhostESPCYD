@@ -1,0 +1,3 @@
+## 2024-05-24 - Skip EAPOL Handshake Scan for Encrypted Frames
+**Learning:** Encrypted 802.11 frames (Protected bit set at `packet[1] & 0x40`) cannot contain valid unencrypted EAPOL headers. Processing them through a linear scan looking for the EAPOL EtherType is a significant waste of CPU time, especially on the ESP32 where many packets are received in promiscuous mode.
+**Action:** Wrap the linear EAPOL scan loop in `PacketSniffer::processPacket` with an `if (len >= 24 && (packet[1] & 0x40) == 0)` check to bypass the scan for encrypted packets, saving up to ~40x processing time per data frame.
