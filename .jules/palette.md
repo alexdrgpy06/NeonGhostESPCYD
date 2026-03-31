@@ -1,0 +1,3 @@
+## 2024-05-18 - Visual Feedback on Physical TFT Touchscreens
+**Learning:** Immediate visual feedback is critical on physical touchscreens (like the CYD) to prevent users from repeatedly tapping buttons, thinking their input wasn't registered.
+**Action:** Implemented a press-wait-release visual pattern for interactive buttons, redrawing them momentarily with inverted colors using a short 50ms delay, to provide instant tactile-like visual feedback. Always enforce precise bounds checks for both X and Y coordinates to prevent accidental triggers outside the visual button area.
