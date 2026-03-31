@@ -1,0 +1,3 @@
+## 2024-05-24 - [Physical Touchscreen Feedback]
+**Learning:** For embedded systems with physical touchscreens (like the ESP32 CYD), immediate visual feedback upon touch is crucial. Without a clear "press state" (like a button color inversion), users often tap repeatedly, which can trigger unintended actions or queued inputs.
+**Action:** Always implement a brief visual state change (e.g., inverting colors using `drawSingleButton` with `pressed=true`, a short delay, then redrawing as normal) for all interactive UI elements directly within the touch handler to confirm the interaction.
