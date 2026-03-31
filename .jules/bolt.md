@@ -1,0 +1,3 @@
+## 2024-05-24 - [Optimize EAPOL Detection]
+**Learning:** Encrypted 802.11 frames (Protected bit set `packet[1] & 0x40`) cannot contain valid EAPOL headers, so scanning their payloads for handshakes is a waste of CPU cycles on the ESP32.
+**Action:** Always check `len >= 24 && !(packet[1] & 0x40)` before scanning payload arrays in `PacketSniffer::processPacket` to skip encrypted frames and avoid out-of-bounds access.
