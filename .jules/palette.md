@@ -1,0 +1,3 @@
+## 2024-05-18 - Physical UI Touch Feedback
+**Learning:** On physical touchscreens with high polling rates like the CYD, relying solely on action execution (like opening a menu or increasing a stat) provides insufficient UX feedback. Users often re-tap buttons because they are unsure if their initial touch registered. Furthermore, strict bounds checking on both upper and lower limits is necessary to avoid errant touches.
+**Action:** Always provide immediate visual feedback by temporarily inverting colors or showing a pressed state on button interaction before triggering the action logic. Enforce strict touch boundaries (`ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H`).
