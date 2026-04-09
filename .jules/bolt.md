@@ -1,0 +1,3 @@
+## 2024-04-09 - Skipping Encrypted 802.11 Data Frames for EAPOL
+**Learning:** Encrypted 802.11 data frames (Protected bit `packet[1] & 0x40` is set) cannot contain valid plaintext EAPOL headers. The previous EAPOL handshake detection was scanning the payload of *all* data frames linearly (up to 36 bytes), resulting in wasted CPU cycles for the vast majority of traffic.
+**Action:** Always check the 'Protected' bit before attempting to inspect the payload of Data frames for EAPOL headers. Skipping the inspection of encrypted data frames yields massive performance improvements (effectively skipping O(N) payload iterations for encrypted traffic).
