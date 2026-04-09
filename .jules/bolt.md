@@ -1,0 +1,3 @@
+## 2024-04-10 - Skip encrypted 802.11 frames to optimize packet sniffing
+**Learning:** Checking the 'Protected' bit (`packet[1] & 0x40`) allows us to safely skip encrypted 802.11 data frames when looking for EAPOL headers. Encrypted frames cannot contain valid plaintext EAPOL headers, so skipping payload inspection yields significant performance improvements (up to ~40x in some tests). Also ensuring a length check like `len >= 24` is needed.
+**Action:** Always check the 'Protected' bit before doing string matching/payload inspection on 802.11 data frames, and wrap logic in `if` blocks instead of early returns to maintain normal program flow (like `savePacket` evaluations).
