@@ -1,0 +1,3 @@
+## 2024-05-18 - Physical Touch UI Bounds & Feedback
+**Learning:** For ESP32 C++ hardware UI projects with resistive touch screens like the Cheap Yellow Display, strict upper and lower interaction bounds checks are essential to prevent accidental false taps. Also, momentary visual feedback (like redrawing inverted colors using a short delay pattern: 'press-wait-release') is critical to prevent users from repeatedly tapping unresponsive physical buttons.
+**Action:** Always implement a `drawSingleButton` helper that accepts a `pressed` state, and implement a brief ~50ms blocking delay in the touch handler to provide immediate visual confirmation on physical touchscreen interfaces before triggering backend actions.
