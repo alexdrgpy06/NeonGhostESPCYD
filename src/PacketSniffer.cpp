@@ -400,21 +400,27 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
-        for (int i = 24; i < len - 6 && i < 60; i++) {
-            if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
-                handshakeCount++;
-                handshakeDetected = true;
-                pendingEvent = EVT_HANDSHAKE;
-                eventDetails = "WPA HANDSHAKE";
-                savePacket = true;
-                
-                // Mark network as having handshake
-                uint8_t* bssid = &packet[16];
-                int idx = findNetwork(bssid);
-                if (idx >= 0) {
-                    networks[idx].hasHandshake = true;
+        // Fast path: skip encrypted data frames and ensure minimum length for 802.11 header.
+        // Protected bit (0x40) in Frame Control byte 1 (packet[1]) indicates encryption.
+        // Encrypted frames cannot contain valid plaintext EAPOL headers, so skipping
+        // payload inspection yields significant performance improvements.
+        if (len >= 24 && !(packet[1] & 0x40)) {
+            for (int i = 24; i < len - 6 && i < 60; i++) {
+                if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
+                    handshakeCount++;
+                    handshakeDetected = true;
+                    pendingEvent = EVT_HANDSHAKE;
+                    eventDetails = "WPA HANDSHAKE";
+                    savePacket = true;
+
+                    // Mark network as having handshake
+                    uint8_t* bssid = &packet[16];
+                    int idx = findNetwork(bssid);
+                    if (idx >= 0) {
+                        networks[idx].hasHandshake = true;
+                    }
+                    break;
                 }
-                break;
             }
         }
     }
