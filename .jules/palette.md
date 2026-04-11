@@ -1,0 +1,3 @@
+## 2025-04-12 - Physical Touch UI Feedback
+**Learning:** For physical hardware projects without modern web frameworks, physical UI feedback (like immediately inverting button colors upon touch) significantly improves UX by giving users confidence that their physical screen tap registered. Touch zones on a screen also require both lower and upper bound checking (`ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H`) to accurately isolate tap areas.
+**Action:** Always provide momentary visual indication (e.g. `delay(50)` with inverted colors) in physical TFT interfaces when handling touch events, and strictly define button bounding boxes.
