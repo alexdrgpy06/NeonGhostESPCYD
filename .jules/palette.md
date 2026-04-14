@@ -1,0 +1,3 @@
+## 2024-04-14 - Visual Feedback for Touch
+**Learning:** This is a hardware TFT display application on an ESP32. It lacks native web accessibility patterns like ARIA. When a user taps a physical touchscreen button, there's no native OS-level visual feedback (like hover states or CSS active states). Users often double-tap because they aren't sure if the tap registered.
+**Action:** Implement momentary visual feedback directly in the touch handler (`handleTouch`). Before executing the button's action, briefly redraw the button with inverted colors or a highlighted state, add a short `delay(50)`, and then redraw it normally. This provides immediate, obvious confirmation of the interaction.

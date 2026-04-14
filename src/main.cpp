@@ -109,6 +109,7 @@ struct GameState {
 
 void setStatus(String line1, String line2, uint16_t color);
 void drawButtons();
+void drawSingleButton(int x, int y, int w, int h, const char* label, uint16_t color, bool pressed);
 void drawTopBar();
 void drawStatusBar();
 void drawGhostArea();
@@ -233,26 +234,28 @@ void drawBackground() {
     game.ghostDirty = true;
 }
 
+void drawSingleButton(int x, int y, int w, int h, const char* label, uint16_t color, bool pressed) {
+    uint16_t bg = pressed ? color : C_DARK;
+    uint16_t fg = pressed ? C_DARK : color;
+    tft.fillRoundRect(x, y, w, h, 6, bg);
+    tft.drawRoundRect(x, y, w, h, 6, color);
+    tft.setTextColor(fg, bg);
+    tft.setTextSize(1);
+    // Center text approximately (6 pixels wide per char at size 1, 8 pixels high)
+    int len = strlen(label);
+    int textW = len * 6;
+    int textH = 8;
+    tft.setCursor(x + (w - textW) / 2, y + (h - textH) / 2);
+    tft.print(label);
+}
+
 void drawButtons() {
     uint16_t btnColor = petStats.getStageColor();
     int x1 = 15, x2 = 85, x3 = 155;
     
-    tft.fillRoundRect(x1, BUTTON_Y, BUTTON_W, BUTTON_H, 6, C_DARK);
-    tft.drawRoundRect(x1, BUTTON_Y, BUTTON_W, BUTTON_H, 6, btnColor);
-    tft.setTextColor(btnColor, C_DARK);
-    tft.setTextSize(1);
-    tft.setCursor(x1 + 20, BUTTON_Y + 18);
-    tft.print("FEED");
-    
-    tft.fillRoundRect(x2, BUTTON_Y, BUTTON_W, BUTTON_H, 6, C_DARK);
-    tft.drawRoundRect(x2, BUTTON_Y, BUTTON_W, BUTTON_H, 6, btnColor);
-    tft.setCursor(x2 + 13, BUTTON_Y + 18);
-    tft.print("ATTACK");
-    
-    tft.fillRoundRect(x3, BUTTON_Y, BUTTON_W, BUTTON_H, 6, C_DARK);
-    tft.drawRoundRect(x3, BUTTON_Y, BUTTON_W, BUTTON_H, 6, btnColor);
-    tft.setCursor(x3 + 18, BUTTON_Y + 18);
-    tft.print("MENU");
+    drawSingleButton(x1, BUTTON_Y, BUTTON_W, BUTTON_H, "FEED", btnColor, false);
+    drawSingleButton(x2, BUTTON_Y, BUTTON_W, BUTTON_H, "ATTACK", btnColor, false);
+    drawSingleButton(x3, BUTTON_Y, BUTTON_W, BUTTON_H, "MENU", btnColor, false);
 }
 
 void drawTopBar() {
@@ -504,14 +507,9 @@ void drawListHeader(bool isWifi) {
     
     tft.fillRect(0, 290, 240, 30, C_PANEL);
     uint16_t btnColor = isWifi ? C_GREEN : C_BLUE;
-    tft.drawRoundRect(15, 293, 60, 22, 4, btnColor);
-    tft.drawRoundRect(90, 293, 60, 22, 4, btnColor);
-    tft.drawRoundRect(165, 293, 60, 22, 4, btnColor);
-    
-    tft.setTextColor(C_WHITE, C_PANEL);
-    tft.setCursor(35, 299); tft.print("UP");
-    tft.setCursor(105, 299); tft.print("BACK");
-    tft.setCursor(180, 299); tft.print("DOWN");
+    drawSingleButton(15, 293, 60, 22, "UP", btnColor, false);
+    drawSingleButton(90, 293, 60, 22, "BACK", btnColor, false);
+    drawSingleButton(165, 293, 60, 22, "DOWN", btnColor, false);
     
     tft.drawFastHLine(0, 290, 240, btnColor);
 }
@@ -571,11 +569,7 @@ void drawMenu() {
     tft.print("MENU");
     
     // NETS button (top right)
-    tft.fillRoundRect(180, 5, 55, 25, 4, C_GREEN);
-    tft.setTextColor(C_BG, C_GREEN);
-    tft.setTextSize(1);
-    tft.setCursor(190, 12);
-    tft.print("NETS");
+    drawSingleButton(180, 5, 55, 25, "NETS", C_GREEN, false);
     
     int y = 42;
     
@@ -693,37 +687,25 @@ void drawMenu() {
     tft.setTextSize(1);
     
     // Back button
-    tft.fillRoundRect(10, 280, 70, 28, 4, C_WHITE);
-    tft.setTextColor(C_BG, C_WHITE);
-    tft.setCursor(30, 290);
-    tft.print("BACK");
+    drawSingleButton(10, 280, 70, 28, "BACK", C_WHITE, false);
     
     // Scroll (only if needed)
     if (ABILITY_COUNT > 11) { // Updated threshold
-        tft.fillRoundRect(90, 280, 30, 28, 4, C_DARK);
-        tft.drawRoundRect(90, 280, 30, 28, 4, themeColor);
-        tft.setTextColor(themeColor, C_DARK);
-        tft.setCursor(100, 290);
-        tft.print("^");
-        
-        tft.fillRoundRect(125, 280, 30, 28, 4, C_DARK);
-        tft.drawRoundRect(125, 280, 30, 28, 4, themeColor);
-        tft.setTextColor(themeColor, C_DARK);
-        tft.setCursor(135, 290);
-        tft.print("v");
+        drawSingleButton(90, 280, 30, 28, "^", themeColor, false);
+        drawSingleButton(125, 280, 30, 28, "v", themeColor, false);
     }
     
     // Reset button
-    tft.fillRoundRect(165, 280, 65, 28, 4, C_DARK);
-    tft.drawRoundRect(165, 280, 65, 28, 4, C_RED);
-    tft.setTextColor(C_RED, C_DARK);
-    tft.setCursor(178, 290);
-    tft.print("RESET");
+    drawSingleButton(165, 280, 65, 28, "RESET", C_RED, false);
 }
 
 void handleMenuTouch(int tx, int ty) {
     // Header NETS button (y < 40, x > 175)
     if (ty < 40 && tx > 175) {
+        drawSingleButton(180, 5, 55, 25, "NETS", C_GREEN, true);
+        delay(50);
+        drawSingleButton(180, 5, 55, 25, "NETS", C_GREEN, false);
+
         game.inMenuView = false;
         game.inListView = true;
         game.showingWifi = true;
@@ -736,22 +718,40 @@ void handleMenuTouch(int tx, int ty) {
     if (ty > 270) {
         if (tx < 85) {
             // BACK button
+            drawSingleButton(10, 280, 70, 28, "BACK", C_WHITE, true);
+            delay(50);
+            drawSingleButton(10, 280, 70, 28, "BACK", C_WHITE, false);
+
             game.inMenuView = false;
             drawBackground();
         } else if (tx >= 90 && tx < 120) {
             // UP scroll
+            uint16_t themeColor = petStats.getStageColor();
+            drawSingleButton(90, 280, 30, 28, "^", themeColor, true);
+            delay(50);
+            drawSingleButton(90, 280, 30, 28, "^", themeColor, false);
+
             if (game.menuScroll > 0) {
                 game.menuScroll--;
                 drawMenu();
             }
         } else if (tx >= 125 && tx < 160) {
             // DOWN scroll
+            uint16_t themeColor = petStats.getStageColor();
+            drawSingleButton(125, 280, 30, 28, "v", themeColor, true);
+            delay(50);
+            drawSingleButton(125, 280, 30, 28, "v", themeColor, false);
+
             if (game.menuScroll < ABILITY_COUNT - 11) {
                 game.menuScroll++;
                 drawMenu();
             }
         } else if (tx >= 165) {
             // RESET button - show confirmation
+            drawSingleButton(165, 280, 65, 28, "RESET", C_RED, true);
+            delay(50);
+            drawSingleButton(165, 280, 65, 28, "RESET", C_RED, false);
+
             tft.fillRect(40, 100, 160, 80, C_DARK);
             tft.drawRect(40, 100, 160, 80, C_RED);
             tft.setTextColor(C_WHITE, C_DARK);
@@ -800,13 +800,23 @@ void handleTouch(int tx, int ty) {
             game.showingWifi = true; // Always WiFi
             drawWifiList();
         } else if (ty > 285) {
+            uint16_t btnColor = C_GREEN;
             if (tx < 80) {
+                drawSingleButton(15, 293, 60, 22, "UP", btnColor, true);
+                delay(50);
+                drawSingleButton(15, 293, 60, 22, "UP", btnColor, false);
                 game.listScroll = max(0, game.listScroll - 6);
             } else if (tx > 160) {
+                drawSingleButton(165, 293, 60, 22, "DOWN", btnColor, true);
+                delay(50);
+                drawSingleButton(165, 293, 60, 22, "DOWN", btnColor, false);
                 // Only WiFi items matter now
                 int maxItems = wifiSniffer.getNetworkCount();
                 game.listScroll = min(game.listScroll + 6, max(0, maxItems - 11));
             } else {
+                drawSingleButton(90, 293, 60, 22, "BACK", btnColor, true);
+                delay(50);
+                drawSingleButton(90, 293, 60, 22, "BACK", btnColor, false);
                 game.inListView = false;
                 drawBackground();
                 return;
@@ -823,14 +833,27 @@ void handleTouch(int tx, int ty) {
     }
     
     // Buttons
-    if (ty >= BUTTON_Y) {
-        if (tx >= 15 && tx < 85) {
+    if (ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H) {
+        uint16_t btnColor = petStats.getStageColor();
+        int x1 = 15, x2 = 85, x3 = 155;
+
+        if (tx >= x1 && tx < x1 + BUTTON_W) {
+            // Visual feedback
+            drawSingleButton(x1, BUTTON_Y, BUTTON_W, BUTTON_H, "FEED", btnColor, true);
+            delay(50);
+            drawSingleButton(x1, BUTTON_Y, BUTTON_W, BUTTON_H, "FEED", btnColor, false);
+
             // FEED
             petStats.feed(20);
             petStats.addXP(XP_FEED);
             setStatus("FEEDING!", "+MP +HP", C_GREEN);
             creature.triggerAnimation(ANIM_EATING, 800);
-        } else if (tx >= 85 && tx < 155) {
+        } else if (tx >= x2 && tx < x2 + BUTTON_W) {
+            // Visual feedback
+            drawSingleButton(x2, BUTTON_Y, BUTTON_W, BUTTON_H, "ATTACK", btnColor, true);
+            delay(50);
+            drawSingleButton(x2, BUTTON_Y, BUTTON_W, BUTTON_H, "ATTACK", btnColor, false);
+
             // ATTACK - Execute random available ability
             int maxAbilities = petStats.stats.stage + 1;
             if (maxAbilities > ABILITY_COUNT) maxAbilities = ABILITY_COUNT;
@@ -863,7 +886,12 @@ void handleTouch(int tx, int ty) {
                 setStatus("LOW MP!", "Need more power...", C_RED);
                 creature.triggerAnimation(ANIM_CRITICAL, 500);
             }
-        } else if (tx >= 155 && tx < 225) {
+        } else if (tx >= x3 && tx < x3 + BUTTON_W) {
+            // Visual feedback
+            drawSingleButton(x3, BUTTON_Y, BUTTON_W, BUTTON_H, "MENU", btnColor, true);
+            delay(50);
+            drawSingleButton(x3, BUTTON_Y, BUTTON_W, BUTTON_H, "MENU", btnColor, false);
+
             // MENU
             game.inMenuView = true;
             game.menuScroll = 0;
