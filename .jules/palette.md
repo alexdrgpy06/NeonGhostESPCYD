@@ -1,0 +1,3 @@
+## 2024-03-24 - Hardware UI Tactile Feedback
+**Learning:** ESP32 hardware buttons lack innate tactile feedback, causing user confusion and repetitive tapping. The lack of visual states on touch leads to a poor physical UX.
+**Action:** When working on hardware UI, always add immediate visual feedback (e.g., momentary color inversion + delay) for physical touch events before triggering complex actions.
