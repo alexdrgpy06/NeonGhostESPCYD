@@ -1,0 +1,3 @@
+## 2024-04-15 - Visual Feedback and Touch Bounds
+**Learning:** Physical touchscreens like the CYD's XPT2046 lack the native hover states and click animations of web interfaces. Without immediate visual feedback, users tend to repeatedly tap buttons, leading to accidental double-triggers or perceived unresponsiveness. Furthermore, touch events must be strictly bounded in both axes (e.g., `ty >= Y && ty <= Y + H`) to avoid triggering actions outside the intended touch zones.
+**Action:** Always provide momentary visual feedback (like color inversion) for button taps, and explicitly check upper and lower bounds for touch interactions to prevent accidental interactions and enhance physical UX.
