@@ -1,0 +1,3 @@
+## 2024-03-22 - Visual Feedback and Touch Bounds on TFT Displays
+**Learning:** On physical touchscreens like the ESP32 Cheap Yellow Display, users tend to repeatedly tap buttons if there isn't immediate, snappy visual feedback (e.g., momentary color inversion), and touch interaction bounds checking must explicitly verify both the upper (`ty >= BUTTON_Y`) and lower (`ty <= BUTTON_Y + BUTTON_H`) boundaries to accurately restrict active tap zones and prevent false positive taps.
+**Action:** Implemented a reusable `drawSingleButton` helper that supports dynamic text centering and an inverted `pressed` state, and updated `handleTouch` to use full bounding boxes and redraw tapped buttons with the pressed state to provide instant tactile-like visual feedback.
