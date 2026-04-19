@@ -1,0 +1,4 @@
+
+## 2024-05-18 - Hardware Tactile Visual Feedback
+**Learning:** Physical touchscreen UI interactions without native physical buttons lack tactile feedback. Users often repeatedly press TFT buttons leading to unintended multiple triggers because they don't immediately know their touch registered. Adding an immediate visual state change (like a momentary color inversion) when a button is pressed solves this. Also, touch zones on physical screens must check strict boundaries (both upper and lower bounds), whereas previously only the upper bound was checked causing false activations below the intended visual buttons.
+**Action:** When implementing touch controls on ESP32/TFT applications, always include a visual "pressed" state redraw (using helper functions like `drawSingleButton` with a `pressed` boolean) and add a short delay (e.g., 50ms) to provide tactile visual feedback, while also strictly enforcing the `Y` coordinate bounds.
