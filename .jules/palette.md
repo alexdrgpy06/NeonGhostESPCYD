@@ -1,0 +1,3 @@
+## 2024-03-20 - [Touch Feedback and Button Bounds]
+**Learning:** Immediate visual feedback (e.g., momentarily redrawing with inverted colors using a short delay) on physical touchscreens is critical to prevent users from repeatedly tapping buttons. Touch interaction bounds checking for buttons must explicitly verify both the upper and lower boundaries to accurately restrict active tap zones.
+**Action:** When creating or modifying button interfaces on physical touchscreens, ensure precise upper and lower bounds are checked, and always implement momentary visual feedback to indicate a registered touch.
