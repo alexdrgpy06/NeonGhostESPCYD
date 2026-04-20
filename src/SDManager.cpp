@@ -50,15 +50,17 @@ bool SDManager::begin() {
 
 String SDManager::getNextFileName() {
   int i = 0;
-  String fileName;
+  char buf[32];
   while (true) {
-    fileName = "/capture_" + String(i) + ".pcap";
-    if (!SD.exists(fileName)) {
+    // ⚡ Bolt: Use snprintf into stack buffer to prevent heap fragmentation
+    // instead of iterative String concatenation.
+    snprintf(buf, sizeof(buf), "/capture_%d.pcap", i);
+    if (!SD.exists(buf)) {
       break;
     }
     i++;
   }
-  return fileName;
+  return String(buf);
 }
 
 void SDManager::openNewPCAP() {
