@@ -1,0 +1,3 @@
+## 2024-05-24 - Hardware Touch UI Visual Feedback and Bounds Checking
+**Learning:** On physical touch screens, providing immediate visual feedback (e.g., momentary color inversion via a short delay) when tapping buttons is crucial to prevent the user from repeatedly tapping them, and rigorous upper/lower bounds checking is needed to accurately define active tap zones.
+**Action:** Extract reusable drawing logic like `drawSingleButton` to simplify state-based rendering, apply rigorous boundary checks (`ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H`), and use explicit `pressed` states combined with `delay()` calls to provide clear touch confirmation before proceeding with functional logic.
