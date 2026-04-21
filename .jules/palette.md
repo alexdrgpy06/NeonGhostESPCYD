@@ -1,0 +1,3 @@
+## 2024-05-20 - Physical Touchscreen Immediate Visual Feedback
+**Learning:** Physical touchscreen interfaces on ESP32 without momentary visual feedback cause users to repeatedly tap buttons. Additionally, omitting upper bound checks on touch boundaries allows accidental activations when tapping nearby interface elements.
+**Action:** Always provide immediate visual feedback (e.g., momentarily redraw button with inverted colors) on physical touchscreens to acknowledge the input, and ensure rigorous upper/lower bounds checking (`ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H`) for all button touch regions.
