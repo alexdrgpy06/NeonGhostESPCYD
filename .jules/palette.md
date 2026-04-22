@@ -1,0 +1,3 @@
+## 2024-04-22 - Visual Feedback and Strict Bounding for Physical Touchscreens
+**Learning:** On ESP32 resistive touchscreens, users frequently over-tap because buttons lack immediate visual feedback, and loosely defined touch boundaries can trigger unintended actions. Standard web ARIA accessibility isn't applicable, so accessibility here relies on physical response.
+**Action:** Implemented `drawSingleButton` to provide momentary color-inversion on tap and enforced strict upper and lower bounding constraints (`ty >= BUTTON_Y && ty <= BUTTON_Y + BUTTON_H`) in `handleTouch` to restrict active tap zones accurately.
