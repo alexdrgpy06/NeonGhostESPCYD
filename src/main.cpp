@@ -535,10 +535,19 @@ void drawWifiList() {
         
         tft.setTextColor(net->hasHandshake ? C_ORANGE : C_GREEN, (i % 2 == 0) ? C_DARK : C_BG);
         tft.setCursor(18, y + 6);
-        String ssid = String(net->ssid);
-        if (ssid.length() > 20) ssid = ssid.substring(0, 17) + "...";
-        if (ssid.length() == 0) ssid = "[Hidden]";
-        tft.print(ssid);
+        // ⚡ Bolt: Prevent heap fragmentation by replacing String with char array
+        char ssidBuf[22];
+        size_t len = strlen(net->ssid);
+        if (len == 0) {
+            strncpy(ssidBuf, "[Hidden]", sizeof(ssidBuf));
+        } else if (len > 20) {
+            strncpy(ssidBuf, net->ssid, 17);
+            strcpy(ssidBuf + 17, "...");
+        } else {
+            strncpy(ssidBuf, net->ssid, sizeof(ssidBuf));
+        }
+        ssidBuf[sizeof(ssidBuf) - 1] = '\0';
+        tft.print(ssidBuf);
         
         tft.setTextColor(C_GREY, (i % 2 == 0) ? C_DARK : C_BG);
         tft.setCursor(200, y + 6);
