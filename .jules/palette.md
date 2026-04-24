@@ -1,0 +1,3 @@
+## 2026-04-24 - Visual Touch Feedback and Bounds
+**Learning:** Physical touchscreens lack tactile feedback, leading users to repeatedly tap buttons if the UI doesn't react instantly. Additionally, loose hitboxes (`ty >= BUTTON_Y`) without lower bounds cause unintended interactions.
+**Action:** Implemented a visual "pressed" state (color inversion) and strict upper/lower bounds checks for touch buttons to provide immediate confirmation and prevent accidental multi-taps.
