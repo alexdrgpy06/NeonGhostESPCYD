@@ -1,0 +1,3 @@
+## 2025-02-14 - Skip payload inspection for encrypted frames
+**Learning:** The `PacketSniffer::processPacket` routine scans data frames for EAPOL headers (0x88 0x8E), causing O(N) CPU overhead per packet. However, if the 'Protected' bit (`packet[1] & 0x40`) is set, the frame is encrypted and cannot contain plaintext EAPOL headers.
+**Action:** Always check the 'Protected' bit and minimum bounds (e.g., `if ((packet[1] & 0x40) == 0 && len >= 24)`) before scanning data frame payloads to safely skip encrypted frames.
