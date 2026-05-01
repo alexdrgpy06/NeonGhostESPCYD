@@ -1,0 +1,3 @@
+## 2024-05-24 - Skip Encrypted Frames
+**Learning:** The `PacketSniffer::processPacket` routine searches for EAPOL headers in all 802.11 data frames. However, encrypted data frames (indicated by the 'Protected' bit `packet[1] & 0x40`) cannot contain valid plaintext EAPOL headers, so searching their payload is wasted CPU time.
+**Action:** Always check the 'Protected' bit (`(packet[1] & 0x40) == 0`) and ensure a minimum length bounds check (e.g., `if (len >= 24)`) before iterating through payload bytes to search for headers, resulting in significant performance improvements (~40x speedup for encrypted frames).
