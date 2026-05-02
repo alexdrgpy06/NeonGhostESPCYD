@@ -1,0 +1,3 @@
+## YYYY-MM-DD - Immediate Visual Feedback on Physical Touchscreens
+**Learning:** Immediate visual feedback (e.g., momentarily redrawing with inverted colors using a short delay, ~50ms) on physical touchscreens is critical to prevent users from repeatedly tapping buttons. The current UI in NeonGhostESPCYD lacks this touch state visual feedback, causing ambiguity.
+**Action:** Implement a generic helper method (`drawSingleButton`) that supports pressed/inverted states, and use it in touch event handlers like `handleTouch` to flash the button prior to executing the corresponding action to provide an unambiguous physical-to-digital response.
