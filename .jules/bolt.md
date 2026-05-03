@@ -1,0 +1,3 @@
+## 2024-05-03 - [Skip Encrypted 802.11 Data Frames for EAPOL Inspection]
+**Learning:** The `PacketSniffer::processPacket` routine processes 802.11 data frames to detect EAPOL handshakes. However, searching payload bytes (24-60) for EAPOL headers (`0x88 0x8E`) on encrypted frames is an expensive and useless operation, as encrypted payloads will not contain valid plaintext headers. This routine runs in a promiscuous callback, so it gets called thousands of times per second.
+**Action:** Enforce a minimum length check (`len >= 24`) and verify the 'Protected' bit (`!(packet[1] & 0x40)`) in the frame control field to safely skip inspection of encrypted data frames, significantly reducing useless loop iterations and increasing processing speed.
