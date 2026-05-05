@@ -1,0 +1,3 @@
+## 2024-05-24 - Protected Frame EAPOL Check
+**Learning:** The `PacketSniffer::processPacket` routine iterates through the payload of *all* 802.11 data frames searching for EAPOL headers (0x88 0x8E). However, if the 'Protected' bit (`packet[1] & 0x40`) is set, the payload is encrypted and cannot possibly contain a plaintext EAPOL header. Iterating through encrypted payloads is a massive waste of CPU cycles on the ESP32.
+**Action:** Always check the 'Protected' bit (`packet[1] & 0x40`) before inspecting data frame payloads for plaintext signatures. Additionally, add a bounds check (`len >= 24`) to ensure the frame is long enough to contain an EAPOL header before starting the loop.
