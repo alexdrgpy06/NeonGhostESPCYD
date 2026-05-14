@@ -400,6 +400,16 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
+        // ⚡ Bolt: Fast path - Skip encrypted frames. Encrypted 802.11 frames
+        // cannot contain plaintext EAPOL headers, so scanning them is a waste.
+        // The Protected bit is 0x40 in the Frame Control flags.
+        if ((packet[1] & 0x40) != 0) {
+            return;
+        }
+
+        // ⚡ Bolt: Bounds check before accessing offset 24+
+        if (len < 26) return;
+
         for (int i = 24; i < len - 6 && i < 60; i++) {
             if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
                 handshakeCount++;
