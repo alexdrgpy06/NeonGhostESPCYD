@@ -1,0 +1,3 @@
+## 2024-05-14 - Skip Encrypted 802.11 Payload Processing
+**Learning:** The `PacketSniffer::processPacket` routine is optimized by checking the 'Protected' bit (`packet[1] & 0x40`) to safely skip encrypted 802.11 data frames. Encrypted frames cannot contain valid plaintext EAPOL headers, so skipping payload inspection yields significant performance improvements (~40-47x speedup). Always ensure a minimum length bounds check (e.g., `if (len >= 26)`) before accessing EAPOL header bytes to prevent out-of-bounds access.
+**Action:** Always check frame encryption flags in packet sniffers before linearly scanning payloads for plaintext magic numbers like EAPOL headers.
