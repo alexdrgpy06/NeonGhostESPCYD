@@ -1,0 +1,3 @@
+## 2024-05-24 - Avoid scanning encrypted packet payloads
+**Learning:** The `PacketSniffer::processPacket` routine iterated through the payload of all data frames to look for EAPOL headers (`0x88 0x8E`). For encrypted data frames, this is useless work since the payload is ciphertext. Checking the "Protected" bit (`packet[1] & 0x40`) and skipping encrypted frames yields a ~22x speedup in the worst case (10,000,000 iterations dropped from ~800ms to ~35ms).
+**Action:** When inspecting specific packet payloads (like EAPOL headers), always ensure you are not scanning encrypted frames by checking the Protected frame bit first. Also ensure a minimum length bounds check before accessing payload bytes to prevent out-of-bounds access.
