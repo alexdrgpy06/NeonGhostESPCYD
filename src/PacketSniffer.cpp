@@ -400,6 +400,12 @@ void PacketSniffer::processPacket(uint8_t *packet, uint16_t len) {
     
     // DATA FRAMES (Type 2) - EAPOL Detection
     else if (type == 2) {
+        // Skip payload inspection for encrypted data frames.
+        // Encrypted frames cannot contain valid plaintext EAPOL headers.
+        if ((packet[1] & 0x40) != 0) return;
+
+        if (len < 26) return; // Prevent out of bounds
+
         for (int i = 24; i < len - 6 && i < 60; i++) {
             if (packet[i] == 0x88 && packet[i + 1] == 0x8E) {
                 handshakeCount++;
