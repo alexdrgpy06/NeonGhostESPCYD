@@ -1,7 +1,7 @@
 /**
  * Author: Alejandro Ramírez
  * Project: NeonGhostESPCYD
- * Logic: Core firmware logic for the NeonGhost hacker pet on ESP32-CYD. \n * Handles WiFi sniffing, BLE scanning, real-time creature rendering, \n * and evolutionary pet stat management with hardware-level orchestration.
+ * Logic: Core firmware logic for the NeonGhost hacker pet on ESP32-CYD. \n * Handles BLE scanning & spam attacks, real-time creature rendering, \n * and evolutionary pet stat management with hardware-level orchestration.
  */
 #include <Arduino.h>
 #include <SPI.h>
@@ -10,7 +10,6 @@
 #include <Preferences.h>
 
 #include "CreatureRenderer.h"
-#include "PacketSniffer.h"
 #include "SDManager.h"
 #include "BLEScanner.h"
 #include "GhostSprites.h"
@@ -50,7 +49,6 @@ SPIClass touchSPI(VSPI);
 XPT2046_Touchscreen ts(CYD_TOUCH_CS, CYD_TOUCH_IRQ);
 Preferences prefs;
 CreatureRenderer creature(&tft);
-PacketSniffer wifiSniffer;
 SDManager sdManager;
 BLEScanner bleScanner;
 PetStatsManager petStats;
@@ -81,7 +79,6 @@ struct GameState {
     
     bool inListView = false;
     bool inMenuView = false;
-    bool showingWifi = true;
     int listScroll = 0;
     int menuScroll = 0;
     
@@ -126,21 +123,21 @@ struct Ability {
 };
 
 Ability abilities[] = {
-    {"Probe Sniff", 0, 3, 8000, 0},     // SPARK
-    {"BLE Sniff", 1, 3, 10000, 0},      // BYTE
-    {"AP Spam", 0, 5, 12000, 0},        // GHOST
-    {"Device Track", 1, 5, 15000, 0},   // SPECTER
-    {"Deauth Attack", 0, 10, 18000, 0}, // PHANTOM (was Detect)
-    {"Swift Pair", 1, 8, 20000, 0},     // WRAITH
-    {"Handshake Cap", 0, 10, 25000, 0}, // SHADE
-    {"Sour Apple", 1, 10, 25000, 0},    // REVENANT
-    {"Rick Roll", 0, 12, 30000, 0},     // BANSHEE (was PMKID Grab)
-    {"AirTag Spam", 1, 12, 30000, 0},   // LICH
-    {"BLE Flood", 1, 15, 35000, 0},     // POLTERGEIST
-    {"Samsung Spam", 1, 15, 35000, 0},  // VOID (was Beacon Spam)
-    {"Full Scan", 0, 18, 40000, 0},     // NIGHTMARE
-    {"Crash Attack", 1, 20, 45000, 0},  // REAPER
-    {"Arsenal", 2, 25, 50000, 0}        // DAEMON
+    {"BLE Sniff",    1, 3,  10000, 0},   // SPARK
+    {"Sour Apple",   1, 5,  15000, 0},   // BYTE
+    {"Swift Pair",   1, 5,  15000, 0},   // GHOST
+    {"BLE Flood",    1, 8,  18000, 0},   // SPECTER
+    {"AirTag Spam",  1, 8,  20000, 0},   // PHANTOM
+    {"Samsung Spam", 1, 10, 22000, 0},   // WRAITH
+    {"Name Spam",    1, 10, 25000, 0},   // SHADE
+    {"Pair Spam",    1, 12, 28000, 0},   // REVENANT
+    {"DevInfo Spam", 1, 12, 30000, 0},   // BANSHEE
+    {"Apple Spam",   1, 15, 35000, 0},   // LICH
+    {"Noise Spam",   1, 15, 35000, 0},   // POLTERGEIST
+    {"Crash Attack", 1, 18, 40000, 0},   // VOID
+    {"Multi Attack", 1, 20, 45000, 0},   // NIGHTMARE
+    {"BLE Arsenal",  1, 22, 50000, 0},   // REAPER
+    {"ALL OUT",      1, 25, 55000, 0}    // DAEMON
 };
 #define ABILITY_COUNT 15
 
@@ -171,39 +168,38 @@ void processAbilities() {
         petStats.stats.mp -= a->mpCost;
         a->lastRun = now;
         
-        setStatus(a->name, a->type == 0 ? "WiFi" : "BT", 
-                 a->type == 0 ? C_GREEN : C_BLUE);
+        setStatus(a->name, "BLE", C_BLUE);
         
         petStats.addXP(3 + idx);
         game.statusDirty = true;
         
-        // WiFi Attack
-        if (a->type == 0) {
-            creature.triggerAnimation(ANIM_ATTACK, 1000);
-            creature.setLedFx(CreatureRenderer::LED_STROBE, C_GREEN, 1000);
-            
-            if (strcmp(a->name, "AP Spam") == 0) wifiSniffer.beaconSpam();
-            else if (strcmp(a->name, "Rick Roll") == 0) wifiSniffer.rickRoll();
-            else if (strcmp(a->name, "Deauth Attack") == 0) wifiSniffer.deauthAttack();
-            
-        } 
-        // BLE Attack
-        else {
-            creature.triggerAnimation(ANIM_SCANNING, 1000);
-            creature.setLedFx(CreatureRenderer::LED_PULSE, C_BLUE, 1000);
-            
-            if (strcmp(a->name, "Sour Apple") == 0) bleScanner.sourApple();
-            else if (strcmp(a->name, "Swift Pair") == 0) bleScanner.swiftPair();
-            else if (strcmp(a->name, "AirTag Spam") == 0) bleScanner.airTagSpam();
-            else if (strcmp(a->name, "BLE Flood") == 0) bleScanner.bleFlood();
-            else if (strcmp(a->name, "Samsung Spam") == 0) bleScanner.samsungSpam();
-            else if (strcmp(a->name, "Crash Attack") == 0) bleScanner.bleFlood();
+        // BLE Attack dispatch
+        if (strcmp(a->name, "BLE Sniff") == 0) {
+            bleScanner.startScan();
+        } else if (strcmp(a->name, "Sour Apple") == 0) {
+            bleScanner.sourApple();
+            creature.triggerAnimation(ANIM_ATTACK, 15000);
+        } else if (strcmp(a->name, "Swift Pair") == 0) {
+            bleScanner.swiftPair();
+            creature.triggerAnimation(ANIM_ATTACK, 15000);
+        } else if (strcmp(a->name, "BLE Flood") == 0) {
+            bleScanner.bleFlood();
+            creature.triggerAnimation(ANIM_ATTACK, 15000);
+        } else if (strcmp(a->name, "AirTag Spam") == 0) {
+            bleScanner.airTagSpam();
+            creature.triggerAnimation(ANIM_ATTACK, 15000);
+        } else if (strcmp(a->name, "Samsung Spam") == 0) {
+            bleScanner.samsungSpam();
+            creature.triggerAnimation(ANIM_ATTACK, 15000);
+        } else if (strcmp(a->name, "Crash Attack") == 0) {
+            bleScanner.bleFlood();
+            creature.triggerAnimation(ANIM_ATTACK, 15000);
+        } else {
+            // Default: BLE scan for any other ability
+            bleScanner.startScan();
         }
         
-        // Special FX for high level
-        if (idx > 10) {
-             creature.setLedFx(CreatureRenderer::LED_RAINBOW, 0, 1500);
-        }
+        creature.setLedFx(CreatureRenderer::LED_PULSE, C_BLUE, 1000);
     }
 }
 
@@ -348,30 +344,23 @@ void drawStatusBar() {
     
     tft.setTextColor(C_GREY, C_PANEL);
     tft.setCursor(200, STATUS_BAR_Y + 8);
-    tft.print("CH");
-    tft.print(wifiSniffer.currentChannel);
+    tft.print("BLE");
     
     int y2 = STATUS_BAR_Y + 32;
-    tft.setTextColor(C_GREEN, C_PANEL);
-    tft.setCursor(10, y2);
-    tft.print("W:");
-    tft.print(wifiSniffer.getNetworkCount());
-    
     tft.setTextColor(C_BLUE, C_PANEL);
-    tft.setCursor(55, y2);
-    tft.print("B:");
+    tft.setCursor(10, y2);
+    tft.print("Dev:");
     tft.print(bleScanner.totalDevices);
     
-    tft.setTextColor(wifiSniffer.handshakeCount > 0 ? C_ORANGE : C_GREY, C_PANEL);
-    tft.setCursor(100, y2);
-    tft.print("HS:");
-    tft.print(wifiSniffer.handshakeCount);
+    tft.setTextColor(bleScanner.isAttacking() ? C_ORANGE : C_GREY, C_PANEL);
+    tft.setCursor(80, y2);
+    tft.print("ATK:");
+    tft.print(bleScanner.isAttacking() ? "ON" : "OFF");
     
     tft.setTextColor(C_GREY, C_PANEL);
     tft.setCursor(145, y2);
-    tft.print("PKT:");
-    tft.print(wifiSniffer.packetCount / 1000);
-    tft.print("K");
+    tft.print("SCN:");
+    tft.print(bleScanner.scanCount);
     
     game.statusDirty = false;
 }
@@ -447,11 +436,7 @@ void fullReset() {
     // Reset pet stats
     petStats.reset();
     
-    // Reset WiFi data
-    wifiSniffer.handshakeCount = 0;
-    wifiSniffer.packetCount = 0;
-    
-    // Reset BLE (clear new device flag)
+    // Reset BLE
     bleScanner.clearNewDevice();
     
     // Reset abilities
@@ -471,90 +456,56 @@ void fullReset() {
 // =============================================================================
 // LIST VIEWS
 // =============================================================================
-void drawListHeader(bool isWifi) {
+void drawListHeader() {
     tft.fillScreen(C_BG);
     tft.fillRect(0, 0, 240, 35, C_PANEL);
     
-    if (isWifi) {
-        tft.fillRect(5, 5, 110, 25, C_GREEN);
-        tft.setTextColor(C_BG, C_GREEN);
-    } else {
-        tft.drawRect(5, 5, 110, 25, C_GREEN);
-        tft.setTextColor(C_GREEN, C_PANEL);
-    }
+    tft.fillRect(60, 5, 120, 25, C_BLUE);
+    tft.setTextColor(C_WHITE, C_BLUE);
     tft.setTextSize(1);
-    tft.setCursor(20, 12);
-    tft.print("WIFI (");
-    tft.print(wifiSniffer.getNetworkCount());
-    tft.print(")");
+    tft.setCursor(80, 12);
+    tft.print("BLE ATTACKS");
     
-    if (!isWifi) {
-        tft.fillRect(125, 5, 110, 25, C_BLUE);
-        tft.setTextColor(C_WHITE, C_BLUE);
-    } else {
-        tft.drawRect(125, 5, 110, 25, C_BLUE);
-        tft.setTextColor(C_BLUE, C_PANEL);
-    }
-    tft.setCursor(145, 12);
-    tft.print("BLE (");
-    tft.print(bleScanner.totalDevices);
-    tft.print(")");
+    tft.drawFastHLine(0, 35, 240, C_BLUE);
     
-    tft.drawFastHLine(0, 35, 240, isWifi ? C_GREEN : C_BLUE);
-    
+    // Bottom buttons
     tft.fillRect(0, 290, 240, 30, C_PANEL);
-    uint16_t btnColor = isWifi ? C_GREEN : C_BLUE;
-    tft.drawRoundRect(15, 293, 60, 22, 4, btnColor);
-    tft.drawRoundRect(90, 293, 60, 22, 4, btnColor);
-    tft.drawRoundRect(165, 293, 60, 22, 4, btnColor);
-    
+    tft.drawRoundRect(90, 293, 60, 22, 4, C_BLUE);
     tft.setTextColor(C_WHITE, C_PANEL);
-    tft.setCursor(35, 299); tft.print("UP");
-    tft.setCursor(105, 299); tft.print("BACK");
-    tft.setCursor(180, 299); tft.print("DOWN");
-    
-    tft.drawFastHLine(0, 290, 240, btnColor);
-}
-
-void drawWifiList() {
-    int count = wifiSniffer.getNetworkCount();
-    drawListHeader(true);
-    
-    tft.setTextSize(1);
-    int maxVisible = 11;
-    int startIdx = game.listScroll;
-    
-    for (int i = 0; i < maxVisible && (startIdx + i) < count; i++) {
-        NetworkInfo* net = wifiSniffer.getNetwork(startIdx + i);
-        if (!net) continue;
-        
-        int y = 40 + (i * 22);
-        if (i % 2 == 0) tft.fillRect(0, y, 240, 21, C_DARK);
-        
-        if (net->hasHandshake) tft.fillCircle(8, y + 10, 4, C_ORANGE);
-        
-        tft.setTextColor(net->hasHandshake ? C_ORANGE : C_GREEN, (i % 2 == 0) ? C_DARK : C_BG);
-        tft.setCursor(18, y + 6);
-        String ssid = String(net->ssid);
-        if (ssid.length() > 20) ssid = ssid.substring(0, 17) + "...";
-        if (ssid.length() == 0) ssid = "[Hidden]";
-        tft.print(ssid);
-        
-        tft.setTextColor(C_GREY, (i % 2 == 0) ? C_DARK : C_BG);
-        tft.setCursor(200, y + 6);
-        tft.print("CH");
-        tft.print(net->channel);
-    }
+    tft.setCursor(105, 299);
+    tft.print("BACK");
+    tft.drawFastHLine(0, 290, 240, C_BLUE);
 }
 
 void drawBleList() {
-    // BLE List removed for stateless scanning
-    drawListHeader(false);
+    tft.fillScreen(C_BG);
+    tft.fillRect(0, 0, 240, 35, C_PANEL);
+    
+    tft.fillRect(60, 5, 120, 25, C_BLUE);
+    tft.setTextColor(C_WHITE, C_BLUE);
+    tft.setTextSize(1);
+    tft.setCursor(80, 12);
+    tft.print("BLE ATTACKS");
+    
+    tft.drawFastHLine(0, 35, 240, C_BLUE);
+    
     tft.setTextColor(C_BLUE, C_BG);
-    tft.setCursor(60, 150);
-    tft.print("BLE TRACKING DISABLED");
-    tft.setCursor(55, 170);
-    tft.print("Attacks Only Mode");
+    tft.setCursor(40, 130);
+    tft.setTextSize(2);
+    tft.print("BLE ONLY");
+    tft.setTextSize(1);
+    tft.setCursor(30, 160);
+    tft.print("WiFi Sniffer Removed");
+    tft.setCursor(25, 180);
+    tft.print("Use ATTACK button!");
+    
+    // Bottom buttons
+    tft.fillRect(0, 290, 240, 30, C_PANEL);
+    tft.drawRoundRect(90, 293, 60, 22, 4, C_BLUE);
+    tft.setTextColor(C_WHITE, C_PANEL);
+    tft.setCursor(105, 299);
+    tft.print("BACK");
+    tft.drawFastHLine(0, 290, 240, C_BLUE);
 }
 
 // =============================================================================
@@ -611,18 +562,14 @@ void drawMenu() {
     y += 14;
     
     // Network stats
-    tft.setTextColor(C_GREEN, C_BG);
-    tft.setCursor(10, y);
-    tft.print("WiFi:");
-    tft.print(wifiSniffer.getNetworkCount());
     tft.setTextColor(C_BLUE, C_BG);
-    tft.setCursor(70, y);
-    tft.print("BLE:");
+    tft.setCursor(10, y);
+    tft.print("BLE Dev:");
     tft.print(bleScanner.totalDevices);
-    tft.setTextColor(C_ORANGE, C_BG);
+    tft.setTextColor(bleScanner.isAttacking() ? C_ORANGE : C_GREY, C_BG);
     tft.setCursor(130, y);
-    tft.print("HS:");
-    tft.print(wifiSniffer.handshakeCount);
+    tft.print("ATK:");
+    tft.print(bleScanner.isAttacking() ? "ON" : "OFF");
     y += 18;
     
     // Attacks Section - show all with availability (increased to 11 items to fill screen)
@@ -726,9 +673,7 @@ void handleMenuTouch(int tx, int ty) {
     if (ty < 40 && tx > 175) {
         game.inMenuView = false;
         game.inListView = true;
-        game.showingWifi = true;
-        game.listScroll = 0;
-        drawWifiList();
+        drawBleList();
         return;
     }
     
@@ -794,24 +739,11 @@ void handleTouch(int tx, int ty) {
     }
     
     if (game.inListView) {
-        if (ty < 40) {
-            game.listScroll = 0;
-            // game.showingWifi = (tx < 120); // Disable BLE toggle
-            game.showingWifi = true; // Always WiFi
-            drawWifiList();
-        } else if (ty > 285) {
-            if (tx < 80) {
-                game.listScroll = max(0, game.listScroll - 6);
-            } else if (tx > 160) {
-                // Only WiFi items matter now
-                int maxItems = wifiSniffer.getNetworkCount();
-                game.listScroll = min(game.listScroll + 6, max(0, maxItems - 11));
-            } else {
-                game.inListView = false;
-                drawBackground();
-                return;
-            }
-            drawWifiList();
+        if (ty > 285) {
+            // BACK button
+            game.inListView = false;
+            drawBackground();
+            return;
         }
         return;
     }
@@ -850,14 +782,9 @@ void handleTouch(int tx, int ty) {
                 petStats.stats.mp -= abilities[pick].mpCost;
                 petStats.addXP(XP_AUTO_ATTACK * 2); // Bonus XP for manual attack
                 
-                // Animation based on attack type
-                if (abilities[pick].type == 0) {
-                    creature.triggerAnimation(ANIM_ATTACK, 800);
-                } else {
-                    creature.triggerAnimation(ANIM_SCANNING, 1200);
-                }
+                creature.triggerAnimation(ANIM_ATTACK, 1500);
                 
-                setStatus("ATTACK!", abilities[pick].name, abilities[pick].type == 0 ? C_RED : C_CYAN);
+                setStatus("ATTACK!", abilities[pick].name, C_BLUE);
                 game.topBarDirty = true;
             } else {
                 setStatus("LOW MP!", "Need more power...", C_RED);
@@ -881,18 +808,6 @@ void handleTouch(int tx, int ty) {
         bleScanner.startScan();
         setStatus("SCANNING...", "BLE Active", C_BLUE);
         creature.triggerAnimation(ANIM_SCANNING, 2000);
-    }
-}
-
-// =============================================================================
-// SNIFFER TASK
-// =============================================================================
-void snifferTask(void *p) {
-    wifiSniffer.start();
-    while (true) {
-        wifiSniffer.loop();
-        sdManager.processBuffer();
-        vTaskDelay(50); // Increased delay to prevent UI stutters (Core contention)
     }
 }
 
@@ -956,7 +871,7 @@ void drawSplash() {
     tft.setTextSize(1);
     tft.setTextColor(C_CYAN, C_BG);
     tft.setCursor(108, 175);
-    tft.print("v7.0");
+    tft.print("v8.0");
     
     // Progress bar background
     tft.drawRect(39, 229, 162, 10, C_DARK);
@@ -1054,7 +969,7 @@ void updatePhysicalLED(uint16_t color) {
 void setup() {
     Serial.begin(115200);
     Serial.println("\n╔═════════════════════════════════════════╗");
-    Serial.println("║     NEONGHOST v7.0 - HACKER PET         ║");
+    Serial.println("║     NEONGHOST v8.0 - BLE HACKER PET    ║");
     Serial.println("╚═════════════════════════════════════════╝");
     
     // 1. Init display FIRST for instant feedback
@@ -1084,19 +999,11 @@ void setup() {
     sdManager.begin();
     updateSplashProgress(40, "SD READY");
     
-    // 6. Init WiFi sniffer (SLOW)
-    updateSplashProgress(50, "INIT WIFI...");
-    wifiSniffer.init(&sdManager);
-    wifiSniffer.setTechLevel(petStats.stats.level);
-    updateSplashProgress(70, "WIFI READY");
-    
-    // 7. Start sniffer task
-    xTaskCreatePinnedToCore(snifferTask, "Sniff", 10240, NULL, 1, NULL, 0); // Increased stack
-    updateSplashProgress(80, "SNIFFER ACTIVE");
-    
-    // 8. Init BLE
+    updateSplashProgress(50, "INIT BLE...");
     bleScanner.init();
-    updateSplashProgress(90, "BLE READY");
+    updateSplashProgress(70, "BLE READY");
+    
+    updateSplashProgress(90, "SYSTEMS OK");
     
     // 9. Draw main UI
     updateSplashProgress(100, "LAUNCHING...");
@@ -1163,45 +1070,8 @@ void loop() {
     }
     
     petStats.update();
-    wifiSniffer.setTechLevel(petStats.stats.level); // Unlock features based on level
     
-    // WiFi events
-    CaptureEvent evt = wifiSniffer.getNextEvent();
-    if (evt != EVT_NONE) {
-        String details = wifiSniffer.getEventDetails();
-        switch (evt) {
-            case EVT_HANDSHAKE:
-                petStats.addXP(XP_HANDSHAKE);
-                petStats.addHP(HP_HANDSHAKE);
-                petStats.addMP(MP_HANDSHAKE);
-                setStatus("HANDSHAKE!", details, C_ORANGE);
-                // Big success!
-                creature.triggerAnimation(ANIM_HAPPY, 2000);
-                break;
-            case EVT_DEAUTH:
-                petStats.addXP(XP_DEAUTH);
-                petStats.addHP(HP_CAPTURE);
-                petStats.addMP(MP_CAPTURE);
-                setStatus("DEAUTH!", details, C_RED);
-                creature.triggerAnimation(ANIM_ATTACK, 1000);
-                break;
-            case EVT_NEW_NETWORK:
-                petStats.addXP(XP_NEW_NETWORK);
-                petStats.addHP(HP_CAPTURE);
-                petStats.addMP(MP_CAPTURE);
-                setStatus("NEW NET", details, C_GREEN);
-                creature.triggerAnimation(ANIM_EATING, 600);
-                break;
-            case EVT_PROBE:
-                petStats.addXP(XP_PROBE);
-                creature.triggerAnimation(ANIM_SCANNING, 500);
-                break;
-            default: break;
-        }
-        game.topBarDirty = true;
-    }
-    
-    // BLE
+    // BLE Scanner loop
     bleScanner.loop();
     if (bleScanner.hasNewDevice()) {
         bleScanner.clearNewDevice();
@@ -1213,9 +1083,9 @@ void loop() {
         game.topBarDirty = true;
     }
     
-    // Periodic BLE (Only if no WiFi attack active)
+    // Periodic BLE scan (every 30s)
     if (now - game.lastBleScan > 30000) {
-        if (!wifiSniffer.isAttacking() && !creature.isAnimating()) {
+        if (!bleScanner.isAttacking() && !creature.isAnimating()) {
             bleScanner.startScan();
             game.lastBleScan = now;
         }

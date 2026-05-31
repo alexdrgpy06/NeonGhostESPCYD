@@ -1,8 +1,8 @@
 # NeonGhostESPCYD
 
-> **Architect: Alejandro Ramírez**
+> **v8.0** — WiFi Sniffer removed. BLE-only attacks edition.
 
-An advanced IoT security and entertainment firmware for the ESP32 Cheap Yellow Display (CYD) that gamifies network auditing through an interactive digital pet system.
+An advanced IoT security and entertainment firmware for the ESP32 Cheap Yellow Display (CYD) that gamifies Bluetooth Low Energy auditing through an interactive digital pet system.
 
 ---
 
@@ -10,11 +10,11 @@ An advanced IoT security and entertainment firmware for the ESP32 Cheap Yellow D
 NeonGhostESPCYD is a specialized firmware designed for the ESP32 Cheap Yellow Display (CYD) that bridges the gap between network monitoring and interactive entertainment. By combining real-time WiFi/BLE packet sniffing with a sophisticated 15-stage evolution engine, it transforms environmental signals into a progression-based experience where the digital "ghost" grows and evolves based on real-world security events.
 
 ## ✨ Key Features
-- **Gamified Wardriving Engine:** Evolution-based pet system where progress is fueled by real-world network events such as handshakes, PMKIDs, and BLE discoveries.
+- **BLE Attack Engine:** Sour Apple, Swift Pair, AirTag Spam, Samsung Spam, BLE Flood — all unlocked through evolution.
 - **15-Stage Evolution Path:** Advanced progression system spanning from 'Spark' to 'Daemon', featuring level-dependent attribute scaling and dynamic visual changes.
-- **Real-Time Signal Analysis:** Integrated WiFi packet sniffer and BLE scanner for environmental auditing, signal tracking, and automated "XP" harvesting.
+- **BLE Scanning:** Integrated BLE scanner for device discovery and environmental auditing.
 - **Hardware-Accelerated Rendering:** High-frame-rate creature animations and touch-driven UI specifically optimized for the ILI9341 display and XPT2046 touch controller.
-- **Persistent State Management:** Robust SD card integration for storing pet statistics, level data, and discovery logs, ensuring long-term continuity.
+- **Persistent State Management:** Robust integration for storing pet statistics and level data, ensuring long-term continuity.
 
 ## 🛠️ Tech Stack
 - **Language:** C++

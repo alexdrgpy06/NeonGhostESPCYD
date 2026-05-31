@@ -100,21 +100,17 @@ private:
 };
 
 // XP Rewards
-#define XP_HANDSHAKE     100
-#define XP_PMKID         150
-#define XP_DEAUTH        25
-#define XP_NEW_NETWORK   10
-#define XP_BLE_DEVICE    8
-#define XP_PROBE         3
+#define XP_BLE_DEVICE    15
+#define XP_BLE_ATTACK    50
 #define XP_FEED          20
 #define XP_PLAY          15
 #define XP_AUTO_ATTACK   5
 
 // HP/MP rewards
-#define HP_CAPTURE       5
-#define HP_HANDSHAKE     15
-#define MP_CAPTURE       10
-#define MP_HANDSHAKE     20
+#define HP_BLE_FOUND     5
+#define HP_BLE_ATTACK    10
+#define MP_BLE_FOUND     8
+#define MP_BLE_ATTACK    15
 #define MP_FEED          15
 
 #endif
