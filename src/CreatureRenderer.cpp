@@ -376,11 +376,21 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale;
-                int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+        // ⚡ Bolt: Use run-length encoding for contiguous horizontal pixels
+        // Groups adjacent pixels into a single fillRect call to reduce TFT SPI overhead
+        int runStart = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool pixelOn = (col < 24) ? ((rowData >> (23 - col)) & 0x01) : false;
+            if (pixelOn) {
+                if (runStart == -1) runStart = col;
+            } else {
+                if (runStart != -1) {
+                    int px = drawX + runStart * scale;
+                    int py = drawY + row * scale;
+                    int runLength = col - runStart;
+                    spr->fillRect(px, py, runLength * scale, scale, color);
+                    runStart = -1;
+                }
             }
         }
     }
@@ -490,9 +500,21 @@ void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        // ⚡ Bolt: Group contiguous horizontal pixels into single fillRect calls
+        // Reduces TFT SPI overhead significantly compared to individual pixel drawing
+        int runStart = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool pixelOn = (col < 24) ? ((rowData >> (23 - col)) & 0x01) : false;
+            if (pixelOn) {
+                if (runStart == -1) runStart = col;
+            } else {
+                if (runStart != -1) {
+                    int px = x + runStart * scale;
+                    int py = y + row * scale;
+                    int runLength = col - runStart;
+                    spr->fillRect(px, py, runLength * scale, scale, color);
+                    runStart = -1;
+                }
             }
         }
     }
