@@ -1,0 +1,3 @@
+## 2024-05-30 - Immediate Visual Feedback on Physical Touchscreens
+**Learning:** Immediate visual feedback (e.g., momentarily redrawing with inverted colors using a short delay, ~50ms) on physical touchscreens is critical to prevent users from repeatedly tapping buttons. This prevents confusing interactions or accidental duplicate actions on the ESP32 CYD where touch events can feel unresponsive without a visual state change.
+**Action:** When adding or updating interactive UI elements like buttons on a physical TFT display, always implement a pressed state (inverted colors) and apply a brief `delay(50)` to give the user unambiguous feedback that their tap was registered before executing the resulting action.
