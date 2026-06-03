@@ -50,15 +50,16 @@ bool SDManager::begin() {
 
 String SDManager::getNextFileName() {
   int i = 0;
-  String fileName;
+  char fileName[32]; // Stack-allocated buffer to prevent heap churn during O(N) search
   while (true) {
-    fileName = "/capture_" + String(i) + ".pcap";
+    // snprintf significantly reduces heap fragmentation compared to String concatenation
+    snprintf(fileName, sizeof(fileName), "/capture_%d.pcap", i);
     if (!SD.exists(fileName)) {
       break;
     }
     i++;
   }
-  return fileName;
+  return String(fileName);
 }
 
 void SDManager::openNewPCAP() {
