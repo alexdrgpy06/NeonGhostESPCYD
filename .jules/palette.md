@@ -1,0 +1,3 @@
+## 2024-06-04 - Touchscreen Visual Feedback
+**Learning:** Immediate visual feedback (e.g., momentarily redrawing with inverted colors using a short delay, ~50ms) on physical touchscreens is critical to prevent users from repeatedly tapping buttons.
+**Action:** Always implement a pressed/inverted visual state function (like `drawSingleButton`) for any touchable UI element, accompanied by a brief delay to ensure the human eye registers the confirmation.
