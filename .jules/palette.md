@@ -1,0 +1,3 @@
+## 2024-06-04 - Physical Touchscreen Interaction Feedback
+**Learning:** Immediate visual feedback (e.g., momentarily redrawing with inverted colors using a short delay, ~50ms) on physical touchscreens is critical to prevent users from repeatedly tapping buttons, as hardware touch panels lack the inherent tactile click or hover states of traditional interfaces.
+**Action:** When implementing interactive touch elements on embedded hardware displays, always include an active pressed state (e.g., inverted colors) immediately upon touch detection and hold it briefly (e.g., delay(50)) before proceeding with the action logic to reassure the user their input was registered.
