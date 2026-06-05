@@ -1,0 +1,3 @@
+## 2025-06-05 - Immediate Visual Feedback on Physical Touchscreens
+**Learning:** Physical TFT touchscreen devices often lack the tactile "click" of hardware buttons or the instant hover states of web browsers. Without immediate visual feedback (e.g., inverting colors momentarily when a button is tapped), users cannot tell if their input was registered, leading to frustrating multi-taps and accidental double-submissions.
+**Action:** Always implement a momentary "pressed" visual state (like `drawSingleButton(..., true)`) paired with a short blocking `delay(~50ms)` in the touch-handling interrupt/polling loop *before* executing the action to provide instant, satisfying confirmation of the touch.
