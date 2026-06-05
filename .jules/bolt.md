@@ -1,0 +1,3 @@
+## 2024-06-05 - Optimize TFT rendering with Run-Length Encoding
+**Learning:** Hardware display drivers (like TFT_eSPI) have significant overhead when drawing individual pixels or small blocks sequentially. The CreatureRenderer::draw function was drawing the 24x24 creature sprite pixel-by-pixel, making 576 separate fillRect calls per frame.
+**Action:** Implemented a Run-Length Encoding (RLE) optimization to group contiguous horizontal pixels of the same color into a single fillRect call, drastically reducing SPI overhead and freeing up CPU cycles. Always look for opportunities to batch drawing operations on hardware displays.
