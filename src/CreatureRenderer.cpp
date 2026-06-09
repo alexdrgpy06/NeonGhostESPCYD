@@ -371,17 +371,25 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
     lastDrawY = centerY - 64 + drawY;
     
     // SECOND PASS: Main pixels
+    // ⚡ Bolt: Use run-length encoding to group contiguous pixels, reducing TFT SPI overhead
     for (int row = 0; row < 24; row++) {
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        int startCol = -1;
         for (int col = 0; col < 24; col++) {
             if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale;
-                int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+                if (startCol == -1) startCol = col;
+            } else {
+                if (startCol != -1) {
+                    spr->fillRect(drawX + startCol * scale, drawY + row * scale, (col - startCol) * scale, scale, color);
+                    startCol = -1;
+                }
             }
+        }
+        if (startCol != -1) {
+            spr->fillRect(drawX + startCol * scale, drawY + row * scale, (24 - startCol) * scale, scale, color);
         }
     }
     
@@ -485,15 +493,25 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
 }
 
 void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t color, int scale) {
+    // ⚡ Bolt: Use run-length encoding to group contiguous pixels, reducing TFT SPI overhead
     for (int row = 0; row < 24; row++) {
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        int startCol = -1;
         for (int col = 0; col < 24; col++) {
             if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+                if (startCol == -1) startCol = col;
+            } else {
+                if (startCol != -1) {
+                    spr->fillRect(x + startCol * scale, y + row * scale, (col - startCol) * scale, scale, color);
+                    startCol = -1;
+                }
             }
+        }
+        if (startCol != -1) {
+            spr->fillRect(x + startCol * scale, y + row * scale, (24 - startCol) * scale, scale, color);
         }
     }
 }
