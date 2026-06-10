@@ -376,12 +376,21 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        // Optimization: Run-Length Encoding (RLE) to minimize TFT SPI driver overhead
+        // by grouping contiguous horizontal pixels of the same color into a single fillRect call.
+        int runStart = -1;
         for (int col = 0; col < 24; col++) {
             if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale;
-                int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+                if (runStart == -1) runStart = col;
+            } else {
+                if (runStart != -1) {
+                    spr->fillRect(drawX + runStart * scale, drawY + row * scale, (col - runStart) * scale, scale, color);
+                    runStart = -1;
+                }
             }
+        }
+        if (runStart != -1) {
+            spr->fillRect(drawX + runStart * scale, drawY + row * scale, (24 - runStart) * scale, scale, color);
         }
     }
     
@@ -490,10 +499,21 @@ void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        // Optimization: Run-Length Encoding (RLE) to minimize TFT SPI driver overhead
+        // by grouping contiguous horizontal pixels of the same color into a single fillRect call.
+        int runStart = -1;
         for (int col = 0; col < 24; col++) {
             if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+                if (runStart == -1) runStart = col;
+            } else {
+                if (runStart != -1) {
+                    spr->fillRect(x + runStart * scale, y + row * scale, (col - runStart) * scale, scale, color);
+                    runStart = -1;
+                }
             }
+        }
+        if (runStart != -1) {
+            spr->fillRect(x + runStart * scale, y + row * scale, (24 - runStart) * scale, scale, color);
         }
     }
 }
