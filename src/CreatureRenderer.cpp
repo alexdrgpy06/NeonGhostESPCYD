@@ -490,10 +490,21 @@ void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
+        // Optimize: Group contiguous pixels into a single horizontal line (RLE)
+        int startCol = -1;
         for (int col = 0; col < 24; col++) {
             if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+                if (startCol == -1) startCol = col;
+            } else {
+                if (startCol != -1) {
+                    spr->fillRect(x + startCol * scale, y + row * scale, (col - startCol) * scale, scale, color);
+                    startCol = -1;
+                }
             }
+        }
+        // Handle any remaining pixels at the end of the row
+        if (startCol != -1) {
+            spr->fillRect(x + startCol * scale, y + row * scale, (24 - startCol) * scale, scale, color);
         }
     }
 }
