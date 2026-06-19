@@ -1,32 +1,44 @@
 /**
  * @file PetStats.cpp
- * @description Advanced Statistics Manager for the NeonGhost Cyber-Pet.
- * Implements game loop logic for XP, Levels, HP/MP decay, and hierarchical evolution stages.
- * Features persistent state management via ESP32 Preferences and real-time state machine updates.
- * 
+ * @brief Branching evolution + NG+ stat manager for the NeonGhost cyber-pet.
+ *
+ * Replaces the old linear 15-stage system with a Digimon-style model:
+ *   5 archetypes x 10 stages, affinity-driven line jumps at milestones (4/8/10),
+ *   persistent power mastery and lifetime counters (New Game Plus).
+ *
  * @author Alejandro Ramírez
- * @version 7.0 (Production Grade)
  */
 
 #include "PetStats.h"
-#include "GhostSprites.h"
 #include <Preferences.h>
+#include <esp_random.h>
 
-// Global persistent storage handle for ESP32 Non-Volatile Storage (NVS)
 extern Preferences prefs;
 
-/**
- * Initializes the statistics structure to default "Genesis" values.
- * Used during first boot or hard reset.
- */
+// -----------------------------------------------------------------------------
+// Init / persistence
+// -----------------------------------------------------------------------------
 void PetStatsManager::init() {
     stats.hp = 100;
     stats.mp = 100;
     stats.level = 1;
     stats.xp = 0;
     stats.xpMax = 100;
-    stats.stage = STAGE_SPARK;
-    
+    stats.archetype = ARCH_GENESIS;
+    stats.stage = 1;
+    stats.baseImage = 0;
+
+    for (uint8_t r = 0; r < ROUTE_COUNT; r++) stats.affinity[r] = 0;
+    for (uint8_t p = 0; p < POWER_COUNT; p++) stats.powerMastery[p] = 0;
+
+    stats.totalAttacks = 0;
+    stats.devicesFound = 0;
+    stats.lineJumps = 0;
+    stats.powerupsUnlocked = 0;
+    stats.deaths = 0;
+    stats.revives = 0;
+    stats.ageBoots = 0;
+
     unsigned long now = millis();
     stats.lastMPDecay = now;
     stats.lastHPCheck = now;
@@ -34,272 +46,292 @@ void PetStatsManager::init() {
     stats.lastAutoAttack = now;
     stats.isSleeping = false;
     stats.isDead = false;
+    stats.hatched = false; // starts as an encrypted egg
 }
 
-/**
- * Loads the pet's state from non-volatile memory.
- * Recalculates thresholds based on current level to ensure consistency.
- */
 void PetStatsManager::load() {
-    // Open the "ghost" namespace in read-only mode
+    init(); // defaults first (also covers migration from old v8 saves)
+
     prefs.begin("ghost", true);
     stats.level = prefs.getInt("lvl", 1);
-    stats.xp = prefs.getInt("xp", 0);
-    stats.hp = prefs.getUChar("hp", 100);
-    stats.mp = prefs.getUChar("mp", 100);
+    stats.xp    = prefs.getInt("xp", 0);
+    stats.hp    = prefs.getUChar("hp", 100);
+    stats.mp    = prefs.getUChar("mp", 100);
+
+    // New-model fields (absent on legacy saves -> defaults from init()).
+    stats.archetype = (Archetype)prefs.getUChar("arch", ARCH_GENESIS);
+    stats.stage     = prefs.getUChar("stg", 0); // 0 => derive from level below
+
+    prefs.getBytes("aff",  stats.affinity,     sizeof(stats.affinity));
+    prefs.getBytes("mast", stats.powerMastery, sizeof(stats.powerMastery));
+
+    stats.totalAttacks     = prefs.getUInt("tA", 0);
+    stats.devicesFound     = prefs.getUInt("dF", 0);
+    stats.lineJumps        = prefs.getUInt("lJ", 0);
+    stats.powerupsUnlocked = prefs.getUInt("pU", 0);
+    stats.deaths           = prefs.getUShort("dth", 0);
+    stats.revives          = prefs.getUShort("rvv", 0);
+    stats.ageBoots         = prefs.getUShort("age", 0);
+    // Legacy saves (level already advanced) are treated as already hatched.
+    stats.hatched          = prefs.getBool("hat", stats.level > 1);
     prefs.end();
-    
-    // Dynamic XP threshold scaling: level * 50 + 50
+
     stats.xpMax = stats.level * 50 + 50;
-    stats.stage = (EvolutionStage)getStageFromLevel(stats.level);
-    
-    // Initialize timing markers for the game loop
+    if (stats.stage < 1) stats.stage = stageFromLevel(stats.level); // migration
+    if (stats.stage > MAX_STAGE) stats.stage = MAX_STAGE;
+    stats.baseImage = baseImageForStage(stats.stage);
+
+    // Count this boot.
+    stats.ageBoots++;
+
     unsigned long now = millis();
     stats.lastMPDecay = now;
     stats.lastHPCheck = now;
     stats.lastActivity = now;
     stats.lastAutoAttack = now;
     stats.isSleeping = false;
-    stats.isDead = false;
+    stats.isDead = (stats.hp == 0);
 }
 
-/**
- * Persists the current statistics to flash memory.
- * Ensures state survival across power cycles.
- */
 void PetStatsManager::save() {
     prefs.begin("ghost", false);
     prefs.putInt("lvl", stats.level);
     prefs.putInt("xp", stats.xp);
     prefs.putUChar("hp", stats.hp);
     prefs.putUChar("mp", stats.mp);
+    prefs.putUChar("arch", (uint8_t)stats.archetype);
+    prefs.putUChar("stg", stats.stage);
+    prefs.putBytes("aff",  stats.affinity,     sizeof(stats.affinity));
+    prefs.putBytes("mast", stats.powerMastery, sizeof(stats.powerMastery));
+    prefs.putUInt("tA", stats.totalAttacks);
+    prefs.putUInt("dF", stats.devicesFound);
+    prefs.putUInt("lJ", stats.lineJumps);
+    prefs.putUInt("pU", stats.powerupsUnlocked);
+    prefs.putUShort("dth", stats.deaths);
+    prefs.putUShort("rvv", stats.revives);
+    prefs.putUShort("age", stats.ageBoots);
+    prefs.putBool("hat", stats.hatched);
     prefs.end();
 }
 
-/**
- * Resets the pet to factory settings and wipes persistent storage.
- */
 void PetStatsManager::reset() {
+    prefs.begin("ghost", false);
+    prefs.clear();
+    prefs.end();
     init();
     save();
 }
 
-/**
- * Main game logic update loop.
- * Should be called once per frame/tick.
- */
+// -----------------------------------------------------------------------------
+// Game loop
+// -----------------------------------------------------------------------------
 void PetStatsManager::update() {
     unsigned long now = millis();
-    
-    decayMP(); // Energy depletion
-    checkHP();  // Health maintenance/starvation check
-    
-    // Auto-sleep logic: enters low-energy state after 2 minutes of inactivity
+    decayMP();
+    checkHP();
     if (!stats.isSleeping && (now - stats.lastActivity > 120000)) {
         stats.isSleeping = true;
     }
 }
 
-/**
- * Handles continuous MP (Mana/Energy) decay.
- * Rate is throttled when the pet is in sleeping mode.
- */
 void PetStatsManager::decayMP() {
     unsigned long now = millis();
-    
-    // Multiplier for sleep mode to conserve energy
     unsigned long rate = stats.isSleeping ? MP_DECAY_RATE * 3 : MP_DECAY_RATE;
-    
     if (now - stats.lastMPDecay > rate) {
         if (stats.mp > 0) stats.mp--;
         stats.lastMPDecay = now;
     }
 }
 
-// Internal counter to stagger health loss during starvation
-static uint8_t hpDrainCounter = 0;
-
-/**
- * Monitors health and handles starvation/recovery mechanics.
- */
 void PetStatsManager::checkHP() {
     unsigned long now = millis();
-    
     if (now - stats.lastHPCheck > HP_CHECK_RATE) {
-        // Starvation: Health depletes when energy (MP) hits zero
-        if (stats.mp == 0 && stats.hp > 0) {
-            stats.hp--;
-        }
-        
-        // Passive Recovery: Health regenerates if pet is well-fed (> 30 MP)
-        if (stats.mp > 30 && stats.hp < 100) {
-            stats.hp++;
-        }
-        
-        // Final Death State Transition
+        if (stats.mp == 0 && stats.hp > 0) stats.hp--;
+        if (stats.mp > 30 && stats.hp < 100) stats.hp++;
         if (stats.hp == 0 && !stats.isDead) {
             stats.isDead = true;
-            save(); // Lock death state in storage
+            stats.deaths++;
+            save();
         }
-        
         stats.lastHPCheck = now;
     }
 }
 
-/**
- * Re-animates a dead pet with a significant XP penalty.
- */
 void PetStatsManager::revive() {
     if (!stats.isDead) return;
-    
-    // Penalty calculation: 10% loss or flat 50 XP (whichever is higher)
     int xpLoss = stats.xp / 10;
     if (xpLoss < 50) xpLoss = 50;
-    
     stats.xp = max(0, stats.xp - xpLoss);
-    
-    // Partial restoration of vitals
     stats.hp = 50;
     stats.mp = 50;
     stats.isDead = false;
+    stats.revives++;
     stats.lastActivity = millis();
-    
     save();
 }
 
-/**
- * Replenishes energy and health. Triggers a wake-up event if pet is sleeping.
- */
 void PetStatsManager::feed(int amount) {
     addMP(amount);
-    addHP(amount / 4); // Secondary healing effect from food
+    addHP(amount / 4);
     stats.lastActivity = millis();
     if (stats.isSleeping) wake();
 }
 
-void PetStatsManager::rest() {
-    stats.isSleeping = true;
-}
+void PetStatsManager::rest() { stats.isSleeping = true; }
 
 void PetStatsManager::wake() {
     stats.isSleeping = false;
     stats.lastActivity = millis();
 }
 
-/**
- * Orchestrates autonomous attack behavior for background interaction.
- * @returns {bool} True if an attack was successfully launched.
- */
+// -----------------------------------------------------------------------------
+// Auto-attack pacing
+// -----------------------------------------------------------------------------
 bool PetStatsManager::tryAutoAttack() {
     unsigned long now = millis();
-    
     if (stats.isSleeping) return false;
     if (now - stats.lastAutoAttack < AUTO_ATTACK_RATE) return false;
-    
     int cost = getAttackMPCost();
     if (stats.mp < cost) return false;
-    
     stats.mp -= cost;
     stats.lastAutoAttack = now;
     stats.lastActivity = now;
-    
     return true;
 }
 
-/**
- * Dynamic calculation of attack costs based on current evolution stage.
- * Scaling: 5 + (Stage * 2)
- */
 int PetStatsManager::getAttackMPCost() {
-    return 5 + (stats.stage * 2);
+    return 5 + (stats.stage * 1);
 }
 
-/**
- * Core progression logic. Handles XP accumulation and multi-level overflows.
- */
+// -----------------------------------------------------------------------------
+// Progression
+// -----------------------------------------------------------------------------
 void PetStatsManager::addXP(int amount) {
     stats.xp += amount;
     stats.lastActivity = millis();
-    
     if (stats.isSleeping) wake();
-    
-    // Process multiple level-ups if XP gain is massive
+
     while (stats.xp >= stats.xpMax) {
         stats.xp -= stats.xpMax;
         stats.level++;
-        stats.xpMax = stats.level * 50 + 50; // Re-scale threshold
-        evolve(); // Check for stage transition
+        stats.xpMax = stats.level * 50 + 50;
+        evolve();
     }
 }
 
-void PetStatsManager::addHP(int amount) {
-    stats.hp = min(100, stats.hp + amount);
-}
+void PetStatsManager::addHP(int amount) { stats.hp = min(100, stats.hp + amount); }
+void PetStatsManager::addMP(int amount) { stats.mp = min(100, stats.mp + amount); }
 
-void PetStatsManager::addMP(int amount) {
-    stats.mp = min(100, stats.mp + amount);
-}
+bool PetStatsManager::checkLevelUp() { return stats.xp >= stats.xpMax; }
 
-bool PetStatsManager::checkLevelUp() {
-    return stats.xp >= stats.xpMax;
+void PetStatsManager::recomputeStage() {
+    uint8_t s = stageFromLevel(stats.level);
+    if (s > MAX_STAGE) s = MAX_STAGE;
+    stats.stage = s;
+    stats.baseImage = baseImageForStage(s);
 }
 
 /**
- * Checks for evolution stage transitions and handles the visual/stat updates.
+ * Stage progression + milestone handling (visual base change, potency bump,
+ * and possible semi-random line jump weighted by affinity).
  */
 void PetStatsManager::evolve() {
-    EvolutionStage oldStage = stats.stage;
-    stats.stage = (EvolutionStage)getStageFromLevel(stats.level);
-    
-    if (stats.stage != oldStage) {
-        // Adaptive reward: Full restoration upon reaching a new evolution stage
+    uint8_t newStage = stageFromLevel(stats.level);
+    if (newStage > MAX_STAGE) newStage = MAX_STAGE;
+    if (newStage <= stats.stage) { save(); return; }
+
+    bool hitMilestone = false;
+    for (uint8_t s = stats.stage + 1; s <= newStage; s++) {
+        if (isMilestone(s)) { hitMilestone = true; stats.powerupsUnlocked++; }
+    }
+
+    // Did we cross a major tier boundary (line-jump point)?
+    bool hitJump = false;
+    for (uint8_t s = stats.stage + 1; s <= newStage; s++) {
+        if (isJumpPoint(s)) hitJump = true;
+    }
+
+    stats.stage = newStage;
+    stats.baseImage = baseImageForStage(newStage);
+    justEvolved = true;
+
+    if (hitMilestone) {
         stats.hp = 100;
         stats.mp = 100;
+    }
+    if (hitJump && stats.hatched) {
+        Archetype nt = evalLineJump(stats.archetype, stats.affinity, random(0, 100));
+        if (nt != stats.archetype) {
+            stats.archetype = nt;
+            stats.lineJumps++;
+            justJumped = true;
+        }
     }
     save();
 }
 
-EvolutionStage PetStatsManager::getStage() {
-    return stats.stage;
+// Phase 0: hatch the encrypted egg. Reads hardware/radio entropy to pick the
+// initial archetype, mirroring the "Data Core .ENC" origin in the canvas.
+void PetStatsManager::hatchEgg() {
+    if (stats.hatched) return;
+    uint32_t e = esp_random();
+    // Mix in whatever timing entropy we have for good measure.
+    e ^= (uint32_t)micros();
+    stats.archetype = (Archetype)(e % ARCHETYPE_COUNT);
+    stats.hatched = true;
+    stats.stage = 1;
+    stats.baseImage = 0;
+    stats.hp = 100;
+    stats.mp = 100;
+    justEvolved = true;
+    justJumped = true; // treat the hatch as the first "identity" reveal
+    stats.lastActivity = millis();
+    save();
 }
 
-/**
- * Mapping of numerical level to evolution stage archetype.
- * Defines the progression hierarchy from SPARK to DAEMON.
- */
-int PetStatsManager::getStageFromLevel(int level) {
-    if (level <= 2) return 0;   // SPARK
-    if (level <= 4) return 1;   // BYTE
-    if (level <= 6) return 2;   // GHOST
-    if (level <= 9) return 3;   // SPECTER
-    if (level <= 12) return 4;  // PHANTOM
-    if (level <= 15) return 5;  // WRAITH
-    if (level <= 18) return 6;  // SHADE
-    if (level <= 22) return 7;  // REVENANT
-    if (level <= 26) return 8;  // BANSHEE
-    if (level <= 30) return 9;  // LICH
-    if (level <= 35) return 10; // POLTERGEIST
-    if (level <= 40) return 11; // VOID
-    if (level <= 47) return 12; // NIGHTMARE
-    if (level <= 55) return 13; // REAPER
-    return 14;                  // DAEMON
+// -----------------------------------------------------------------------------
+// Branching / NG+
+// -----------------------------------------------------------------------------
+void PetStatsManager::addAffinity(Route r, uint32_t n) {
+    if (r >= ROUTE_COUNT) return;
+    stats.affinity[r] += n;
 }
 
-const char* PetStatsManager::getStageName() {
-    return STAGE_NAMES[stats.stage];
+void PetStatsManager::gainMastery(uint8_t powerId, uint16_t n) {
+    if (powerId >= POWER_COUNT) return;
+    uint32_t m = (uint32_t)stats.powerMastery[powerId] + n;
+    if (m > 9999) m = 9999;
+    stats.powerMastery[powerId] = (uint16_t)m;
+    stats.totalAttacks++;
 }
 
-const char* PetStatsManager::getAttackName() {
-    return ATTACK_NAMES[stats.stage];
+uint16_t PetStatsManager::masteryOf(uint8_t powerId) {
+    if (powerId >= POWER_COUNT) return 0;
+    return stats.powerMastery[powerId];
 }
 
-uint8_t PetStatsManager::getAttackType() {
-    return ATTACK_TYPES[stats.stage];
+Route PetStatsManager::dominant() { return dominantRoute(stats.affinity); }
+
+int PetStatsManager::powerMpCost(uint8_t powerId) {
+    if (powerId >= POWER_COUNT) return 99;
+    int c = POWERS[powerId].baseMpCost;
+    Archetype home = POWERS[powerId].home;
+    // Foreign (non-home, non-genesis) powers cost ~33% more.
+    if (home != stats.archetype && home != ARCH_GENESIS) c += c / 3;
+    // Mastery shaves up to ~40% off.
+    uint16_t m = stats.powerMastery[powerId];
+    int reduce = (m > 200) ? (c * 40 / 100) : (c * (m / 5) / 100);
+    c -= reduce;
+    if (c < 1) c = 1;
+    return c;
 }
 
-/**
- * Returns the UI theme color associated with the current evolution stage.
- */
-uint16_t PetStatsManager::getStageColor() {
-    return STAGE_COLORS[stats.stage];
-}
+// -----------------------------------------------------------------------------
+// Getters
+// -----------------------------------------------------------------------------
+Archetype   PetStatsManager::getArchetype()     { return stats.archetype; }
+uint8_t     PetStatsManager::getStage()         { return stats.stage; }
+const char* PetStatsManager::getArchetypeName() { return ARCHETYPE_NAMES[stats.archetype]; }
+const char* PetStatsManager::getPhaseName()     { return stats.hatched ? phaseName(stats.stage) : "Egg"; }
+uint16_t    PetStatsManager::getArchetypeColor(){ return ARCHETYPE_COLORS[stats.archetype]; }
+uint16_t    PetStatsManager::getArchetypeGlow() { return ARCHETYPE_GLOW[stats.archetype]; }
