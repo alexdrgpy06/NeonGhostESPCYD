@@ -687,6 +687,7 @@ void setup() {
     updateSplashProgress(30, "STATS LOADED");
 
     sdManager.begin();
+    creature.setSDReady(sdManager.isReady); // use SD sprites when available
     updateSplashProgress(40, "SD READY");
 
     updateSplashProgress(50, "INIT BLE...");

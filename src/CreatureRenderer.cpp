@@ -12,6 +12,10 @@
 #include "CreatureRenderer.h"
 #include "GhostSprites.h"
 #include "EvolutionTree.h"
+#include <SD.h>
+
+#define SD_FRAME_MAX 128                 // max sprite dimension supported
+#define SD_TRANSPARENT565 0x07FF         // cyan = transparent (see sprite_forge.py)
 
 // Procedural fallback silhouettes per archetype (used when SD art is absent).
 // One of the existing 1-bit ghost shapes is reused to give each line a distinct
@@ -59,6 +63,53 @@ CreatureRenderer::CreatureRenderer(TFT_eSPI *tft) {
     ledFxColor = 0;
     ledFxStart = 0;
     ledFxDuration = 0;
+
+    // SD sprite cache buffer (up to 128x128 RGB565).
+    frameBuf = (uint16_t*)malloc(SD_FRAME_MAX * SD_FRAME_MAX * sizeof(uint16_t));
+}
+
+// Map the current animation to one of the 4 expression frames on disk
+// (0=neutral, 1=blink, 2=happy, 3=angry).
+uint8_t CreatureRenderer::frameKindForAnim() {
+    switch (currentAnim) {
+        case ANIM_HAPPY:
+        case ANIM_EATING:
+            return 2;
+        case ANIM_ATTACK:
+        case ANIM_HACKING:
+        case ANIM_CRITICAL:
+            return 3;
+        case ANIM_IDLE:
+            return ((millis() / 4000) % 5 == 0) ? 1 : 0; // occasional blink
+        default:
+            return 0;
+    }
+}
+
+// Load /sprites/<prefix>/<prefix>_s<N>_<frame>.bin into frameBuf.
+bool CreatureRenderer::loadSDFrame(uint8_t archetype, uint8_t baseN, uint8_t frameKind) {
+    if (!frameBuf || archetype >= ARCHETYPE_COUNT) return false;
+    const char* pfx = ARCHETYPE_PREFIX[archetype];
+    char path[48];
+    snprintf(path, sizeof(path), "/sprites/%s/%s_s%u_%u.bin", pfx, pfx, baseN, frameKind);
+
+    File f = SD.open(path, FILE_READ);
+    if (!f) return false;
+
+    uint8_t hdr[4];
+    if (f.read(hdr, 4) != 4) { f.close(); return false; }
+    int w = hdr[0] | (hdr[1] << 8);
+    int h = hdr[2] | (hdr[3] << 8);
+    if (w <= 0 || h <= 0 || w > SD_FRAME_MAX || h > SD_FRAME_MAX) { f.close(); return false; }
+
+    size_t bytes = (size_t)w * h * 2;
+    size_t got = f.read((uint8_t*)frameBuf, bytes);
+    f.close();
+    if (got != bytes) return false;
+
+    frameW = w;
+    frameH = h;
+    return true;
 }
 
 int CreatureRenderer::getStageFromLevel(int level) {
@@ -424,7 +475,20 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
     }
     
     currentColor = color; // Sync for LED
-    
+
+    // Try a multicolor SD frame for this archetype/base/expression (cached by
+    // key so we only hit the card when something changes).
+    bool haveArt = false;
+    if (sdReady && frameBuf) {
+        uint8_t baseN = BASE_STAGE_NUM[baseImageForStage(stage)];
+        uint8_t fk = frameKindForAnim();
+        if (!(frameValid && cachedArch == archetype && cachedBaseN == baseN && cachedFrame == fk)) {
+            frameValid = loadSDFrame(archetype, baseN, fk);
+            cachedArch = archetype; cachedBaseN = baseN; cachedFrame = fk;
+        }
+        haveArt = frameValid;
+    }
+
     int scale = 4;
     // For 128x128 sprite: Ghost (96px) centered at (16, 16)
     // animOffset adds movement within the sprite
@@ -435,17 +499,26 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
     lastDrawX = centerX - 64 + drawX;
     lastDrawY = centerY - 64 + drawY;
     
-    // SECOND PASS: Main pixels
-    for (int row = 0; row < 24; row++) {
-        uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
-                           (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
-                           (pgm_read_byte(&sprite[row * 3 + 2]));
-        
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                int px = drawX + col * scale;
-                int py = drawY + row * scale;
-                spr->fillRect(px, py, scale, scale, color);
+    if (haveArt) {
+        // Blit the multicolor SD frame (cyan transparent), centered + animated.
+        int ax = (128 - frameW) / 2 + (int)posX + animOffsetX;
+        int ay = (128 - frameH) / 2 + (int)posY + animOffsetY;
+        spr->setSwapBytes(false); // frameBuf is native-endian RGB565
+        spr->pushImage(ax, ay, frameW, frameH, frameBuf, (uint16_t)SD_TRANSPARENT565);
+        spr->setSwapBytes(true);
+    } else {
+        // Procedural 1-bit fallback silhouette.
+        for (int row = 0; row < 24; row++) {
+            uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
+                               (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
+                               (pgm_read_byte(&sprite[row * 3 + 2]));
+
+            for (int col = 0; col < 24; col++) {
+                if ((rowData >> (23 - col)) & 0x01) {
+                    int px = drawX + col * scale;
+                    int py = drawY + row * scale;
+                    spr->fillRect(px, py, scale, scale, color);
+                }
             }
         }
     }
