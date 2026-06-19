@@ -76,6 +76,10 @@ public:
     void setLedFx(LedMode mode, uint16_t color, int duration = 0);
     bool isAnimating() { return currentAnim != ANIM_IDLE; } // Helper for ability check
     void drawScanlines();
+
+    // Enable SD sprite loading once the card is mounted (procedural fallback
+    // otherwise). See tools/sprite_forge.py for the asset format.
+    void setSDReady(bool r) { sdReady = r; }
     
     AnimState currentAnim;
     uint16_t currentColor; // Expose for LED control
@@ -103,7 +107,16 @@ private:
     bool isBlinking;
     
     Particle particles[MAX_PARTICLES];
-    
+
+    // SD sprite cache (loads a frame only when archetype/base/expression change).
+    bool sdReady = false;
+    uint16_t* frameBuf = nullptr;
+    int frameW = 0, frameH = 0;
+    uint8_t cachedArch = 255, cachedBaseN = 255, cachedFrame = 255;
+    bool frameValid = false;
+    bool loadSDFrame(uint8_t archetype, uint8_t baseN, uint8_t frameKind);
+    uint8_t frameKindForAnim();
+
     void updatePosition();
     void drawSprite(int x, int y, const uint8_t* sprite, uint16_t color, int scale);
     void drawMatrixRain(int x, int y);
