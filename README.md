@@ -1,20 +1,50 @@
 # NeonGhostESPCYD
 
-> **v8.0** — WiFi Sniffer removed. BLE-only attacks edition.
+> **DIGI v9.0** — Digimon-style branching evolution + Full-BT cyber-pet.
 
-An advanced IoT security and entertainment firmware for the ESP32 Cheap Yellow Display (CYD) that gamifies Bluetooth Low Energy auditing through an interactive digital pet system.
+An IoT security + entertainment firmware for the ESP32 Cheap Yellow Display (CYD)
+that gamifies Bluetooth auditing through an evolving digital pet inspired by
+Digimon: it grows, branches and gains power based on what it *does*.
 
 ---
 
-## 🚀 Overview
-NeonGhostESPCYD is a specialized firmware designed for the ESP32 Cheap Yellow Display (CYD) that bridges the gap between network monitoring and interactive entertainment. By combining real-time WiFi/BLE packet sniffing with a sophisticated 15-stage evolution engine, it transforms environmental signals into a progression-based experience where the digital "ghost" grows and evolves based on real-world security events.
+## ⚠️ Authorized / educational use only
+This firmware contains dual-use wireless capabilities (BLE advertising spam,
+best-effort 2.4 GHz disruption, on-demand WiFi scan/deauth). **Only use it on
+devices and networks you own or are explicitly authorized to test.** Interfering
+with equipment you do not own may be illegal in your jurisdiction.
+
+**ESP32 radio reality:** a stock ESP32 *cannot* truly jam/deauth Bluetooth
+Classic (BR/EDR) audio links, and the BLE stack used here (NimBLE) is BLE-only.
+The "BT disruption / speaker" powers are *best-effort* 2.4 GHz advertising
+saturation, framed as disruption — not a jammer. WiFi deauth via raw 802.11 TX
+is best-effort and may be dropped by newer ESP-IDF. The single radio is
+time-shared: BLE and WiFi do not run promiscuously at the same time.
+
+## 🧬 Evolution model
+- **5 archetypes (style lines):** GENESIS, JAMMER (BT disruption), SPAMMER (BLE
+  spam), SNIFFER (recon/PCAP), STRIKER (WiFi).
+- **10 stages per line.** Stages are mostly **additive** (growing aura/FX); the
+  **base image changes at milestones 4, 8 and 10**, where the pet may also
+  **jump to another line** semi-randomly, weighted by its dominant affinity.
+- **No gating:** every power is always available. Stages grow visuals and
+  **power mastery** (potency / lower MP).
+- **Default = automatic BT + BLE.** Picking a power from the menu runs it *and*
+  marks **preference** (feeds the route) — so you steer the evolution.
+- **New Game Plus:** power mastery and lifetime counters (attacks, devices,
+  line jumps, ages…) persist across jumps and reboots (NVS).
 
 ## ✨ Key Features
-- **BLE Attack Engine:** Sour Apple, Swift Pair, AirTag Spam, Samsung Spam, BLE Flood — all unlocked through evolution.
-- **15-Stage Evolution Path:** Advanced progression system spanning from 'Spark' to 'Daemon', featuring level-dependent attribute scaling and dynamic visual changes.
-- **BLE Scanning:** Integrated BLE scanner for device discovery and environmental auditing.
-- **Hardware-Accelerated Rendering:** High-frame-rate creature animations and touch-driven UI specifically optimized for the ILI9341 display and XPT2046 touch controller.
-- **Persistent State Management:** Robust integration for storing pet statistics and level data, ensuring long-term continuity.
+- **AttackManager + state machine:** all offensive/recon logic and radio-mode
+  switching live in one module; the pet reacts (red / tremble / strobe LED)
+  while attacking.
+- **Branching evolution engine** (`EvolutionTree.h` + `PetStats`) with affinity
+  routing and milestone line jumps.
+- **Procedural + SD hybrid art:** runs immediately with procedural archetype
+  silhouettes + auras; multicolor frames load from SD when present
+  (`tools/sprite_forge.py` builds the SD tree).
+- **Hardware-accelerated rendering** for the ILI9341 + XPT2046 CYD.
+- **Persistent NG+ state** in NVS, with migration from old v8 saves.
 
 ## 🛠️ Tech Stack
 - **Language:** C++
@@ -49,8 +79,17 @@ NeonGhostESPCYD is a specialized firmware designed for the ESP32 Cheap Yellow Di
 4. **Flash the Firmware:**
    Connect your ESP32 CYD via USB and click the **Upload** button in the PlatformIO toolbar (or run `pio run -t upload` via CLI).
 
-5. **Prepare SD Card:**
-   Ensure your SD card contains the necessary assets (if applicable) and is inserted into the CYD slot before booting.
+5. **Prepare SD Card (optional):**
+   The firmware boots and plays fully with procedural art even without an SD card.
+   For multicolor sprites, generate the asset tree and copy it to the card root:
+   ```bash
+   # placeholder tree (no Pillow needed)
+   python3 tools/sprite_forge.py scaffold ./sd_root --size 96
+   # or convert your own PNGs
+   python3 tools/sprite_forge.py convert face.png sd_root/sprites/jammer/stage_4_0.bin
+   ```
+   Layout: `/sprites/<archetype>/stage_<n>_<frame>.bin` where `<n>` ∈ {1,4,8,10}
+   (milestone bases) and `<frame>` ∈ {0=neutral,1=blink,2=happy,3=angry}.
 
 ## 📜 License
 This project is licensed under the **MIT** License.

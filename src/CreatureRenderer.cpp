@@ -11,6 +11,18 @@
  */
 #include "CreatureRenderer.h"
 #include "GhostSprites.h"
+#include "EvolutionTree.h"
+
+// Procedural fallback silhouettes per archetype (used when SD art is absent).
+// One of the existing 1-bit ghost shapes is reused to give each line a distinct
+// look; multicolor SD frames (Phase 3) layer on top of this when available.
+static const uint8_t* ARCH_FALLBACK[ARCHETYPE_COUNT] = {
+    GHOST_GHOST,       // GENESIS
+    GHOST_DAEMON,      // JAMMER  (demonic)
+    GHOST_POLTERGEIST, // SPAMMER (chaos)
+    GHOST_BYTE,        // SNIFFER (techy)
+    GHOST_WRAITH       // STRIKER (flowing/electric)
+};
 
 // Ghost-following 128x128 sprite - efficient and flicker-free
 
@@ -259,8 +271,12 @@ void CreatureRenderer::setLedFx(LedMode mode, uint16_t color, int duration) {
     ledFxStart = millis();
 }
 
-void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage stage, int mood) {
+void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t stage,
+                            bool aggressive, int mood) {
     unsigned long now = millis();
+    if (archetype >= ARCHETYPE_COUNT) archetype = 0;
+    if (stage < 1) stage = 1;
+    if (stage > MAX_STAGE) stage = MAX_STAGE;
     
     updatePosition();
     updateParticles();
@@ -332,11 +348,14 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
     
     spr->fillSprite(TFT_BLACK);
     
-    int stageIdx = getStageFromLevel(level);
-    const uint8_t* sprite = GHOST_STAGES[stageIdx];
-    uint16_t color = STAGE_COLORS[stageIdx];
-    uint16_t glowColor = STAGE_GLOW_COLORS[stageIdx];
-    
+    const uint8_t* sprite = ARCH_FALLBACK[archetype];
+    uint16_t color = ARCHETYPE_COLORS[archetype];
+    uint16_t glowColor = ARCHETYPE_GLOW[archetype];
+
+    if (aggressive) {
+        color = 0xF800; // attacking -> red regardless of line
+    }
+
     if (currentAnim == ANIM_EVOLVING) {
         color = STAGE_COLORS[((now / 100) % 7)];
     } else if (currentAnim == ANIM_CRITICAL) {
@@ -384,7 +403,18 @@ void CreatureRenderer::draw(int centerX, int centerY, int level, EvolutionStage 
             }
         }
     }
-    
+
+    // Stage aura: concentric glow rings whose count grows with the stage (and
+    // pops at milestones 4/8/10). This is the additive "power/aura" growth.
+    int auraRings = stage / 3; // 0..3
+    if (isMilestone(stage)) auraRings++;
+    if (auraRings > 0) {
+        int cx = drawX + 48, cy = drawY + 48;
+        for (int a = 1; a <= auraRings; a++) {
+            spr->drawCircle(cx, cy, 48 + a * 5, glowColor);
+        }
+    }
+
     drawParticles();
     
     if (currentAnim == ANIM_SLEEPING) {
