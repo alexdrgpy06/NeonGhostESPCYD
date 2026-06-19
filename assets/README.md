@@ -2,7 +2,9 @@
 
 These are the **editable** placeholder sprites for the pet's evolution lines.
 Replace them with your own art following the design in
-[`../docs/EVOLUTION_CANVAS.md`](../docs/EVOLUTION_CANVAS.md).
+[`../docs/EVOLUTION_CANVAS.md`](../docs/EVOLUTION_CANVAS.md). A ready-to-use
+**image-generation prompt for every BMP** (by line/stage/expression) is in
+[`../docs/SPRITE_PROMPTS.md`](../docs/SPRITE_PROMPTS.md).
 
 ## Layout
 
