@@ -271,6 +271,52 @@ void CreatureRenderer::setLedFx(LedMode mode, uint16_t color, int duration) {
     ledFxStart = millis();
 }
 
+// Phase 0: the "Data Core .ENC" — a dark pulsing polygonal core with falling
+// matrix characters and a virtual lock, before the archetype is assigned.
+void CreatureRenderer::drawEgg(int centerX, int centerY) {
+    unsigned long now = millis();
+    updateParticles();
+    spr->fillSprite(TFT_BLACK);
+
+    int cx = 64, cy = 64;
+    float pulse = (sin(now / 300.0) + 1.0) * 0.5;     // 0..1
+    int r = 26 + (int)(pulse * 5);
+    uint16_t core = 0x10A2;                            // dark blue-grey
+    uint16_t edge = 0x07FF;                            // cyan
+
+    // Filled diamond (polygonal data core)
+    for (int dy = -r; dy <= r; dy++) {
+        int w = r - abs(dy);
+        spr->drawFastHLine(cx - w, cy + dy, 2 * w, core);
+    }
+    spr->drawLine(cx, cy - r, cx + r, cy, edge);
+    spr->drawLine(cx + r, cy, cx, cy + r, edge);
+    spr->drawLine(cx, cy + r, cx - r, cy, edge);
+    spr->drawLine(cx - r, cy, cx, cy - r, edge);
+
+    // Virtual lock glyph blinking
+    spr->setTextColor(((now / 400) % 2) ? 0xFFFF : 0xFD20);
+    spr->drawString(".ENC", cx - 12, cy - 4);
+
+    // Falling matrix characters
+    for (int i = 0; i < 7; i++) {
+        int x = (i * 19 + (int)(now / 50)) % 128;
+        int y = (i * 27 + (int)(now / 18)) % 128;
+        char ch = (((now / 7) + i) % 2) ? '1' : '0';
+        spr->drawChar(x, y, ch, 0x07E0, 0, 1);
+    }
+
+    drawParticles();
+    currentColor = edge;
+
+    int sx = centerX - 64, sy = centerY - 64;
+    if (sx < 0) sx = 0;
+    if (sx > 240 - 128) sx = 240 - 128;
+    if (sy < 0) sy = 0;
+    if (sy > 320 - 128) sy = 320 - 128;
+    spr->pushSprite(sx, sy);
+}
+
 void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t stage,
                             bool aggressive, int mood) {
     unsigned long now = millis();
@@ -408,11 +454,16 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
     // pops at milestones 4/8/10). This is the additive "power/aura" growth.
     int auraRings = stage / 3; // 0..3
     if (isMilestone(stage)) auraRings++;
+    int cx = drawX + 48, cy = drawY + 48;
     if (auraRings > 0) {
-        int cx = drawX + 48, cy = drawY + 48;
         for (int a = 1; a <= auraRings; a++) {
             spr->drawCircle(cx, cy, 48 + a * 5, glowColor);
         }
+    }
+    // Even stages reuse the previous base + add an extra overlay accent ring.
+    if (hasOverlay(stage)) {
+        int rr = 44 + (int)(sin(now / 250.0) * 4);
+        spr->drawCircle(cx, cy, rr, color);
     }
 
     drawParticles();

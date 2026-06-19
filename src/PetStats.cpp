@@ -11,6 +11,7 @@
 
 #include "PetStats.h"
 #include <Preferences.h>
+#include <esp_random.h>
 
 extern Preferences prefs;
 
@@ -45,6 +46,7 @@ void PetStatsManager::init() {
     stats.lastAutoAttack = now;
     stats.isSleeping = false;
     stats.isDead = false;
+    stats.hatched = false; // starts as an encrypted egg
 }
 
 void PetStatsManager::load() {
@@ -70,6 +72,8 @@ void PetStatsManager::load() {
     stats.deaths           = prefs.getUShort("dth", 0);
     stats.revives          = prefs.getUShort("rvv", 0);
     stats.ageBoots         = prefs.getUShort("age", 0);
+    // Legacy saves (level already advanced) are treated as already hatched.
+    stats.hatched          = prefs.getBool("hat", stats.level > 1);
     prefs.end();
 
     stats.xpMax = stats.level * 50 + 50;
@@ -106,6 +110,7 @@ void PetStatsManager::save() {
     prefs.putUShort("dth", stats.deaths);
     prefs.putUShort("rvv", stats.revives);
     prefs.putUShort("age", stats.ageBoots);
+    prefs.putBool("hat", stats.hatched);
     prefs.end();
 }
 
@@ -240,6 +245,12 @@ void PetStatsManager::evolve() {
         if (isMilestone(s)) { hitMilestone = true; stats.powerupsUnlocked++; }
     }
 
+    // Did we cross a major tier boundary (line-jump point)?
+    bool hitJump = false;
+    for (uint8_t s = stats.stage + 1; s <= newStage; s++) {
+        if (isJumpPoint(s)) hitJump = true;
+    }
+
     stats.stage = newStage;
     stats.baseImage = baseImageForStage(newStage);
     justEvolved = true;
@@ -247,6 +258,8 @@ void PetStatsManager::evolve() {
     if (hitMilestone) {
         stats.hp = 100;
         stats.mp = 100;
+    }
+    if (hitJump && stats.hatched) {
         Archetype nt = evalLineJump(stats.archetype, stats.affinity, random(0, 100));
         if (nt != stats.archetype) {
             stats.archetype = nt;
@@ -254,6 +267,25 @@ void PetStatsManager::evolve() {
             justJumped = true;
         }
     }
+    save();
+}
+
+// Phase 0: hatch the encrypted egg. Reads hardware/radio entropy to pick the
+// initial archetype, mirroring the "Data Core .ENC" origin in the canvas.
+void PetStatsManager::hatchEgg() {
+    if (stats.hatched) return;
+    uint32_t e = esp_random();
+    // Mix in whatever timing entropy we have for good measure.
+    e ^= (uint32_t)micros();
+    stats.archetype = (Archetype)(e % ARCHETYPE_COUNT);
+    stats.hatched = true;
+    stats.stage = 1;
+    stats.baseImage = 0;
+    stats.hp = 100;
+    stats.mp = 100;
+    justEvolved = true;
+    justJumped = true; // treat the hatch as the first "identity" reveal
+    stats.lastActivity = millis();
     save();
 }
 
@@ -300,5 +332,6 @@ int PetStatsManager::powerMpCost(uint8_t powerId) {
 Archetype   PetStatsManager::getArchetype()     { return stats.archetype; }
 uint8_t     PetStatsManager::getStage()         { return stats.stage; }
 const char* PetStatsManager::getArchetypeName() { return ARCHETYPE_NAMES[stats.archetype]; }
+const char* PetStatsManager::getPhaseName()     { return stats.hatched ? phaseName(stats.stage) : "Egg"; }
 uint16_t    PetStatsManager::getArchetypeColor(){ return ARCHETYPE_COLORS[stats.archetype]; }
 uint16_t    PetStatsManager::getArchetypeGlow() { return ARCHETYPE_GLOW[stats.archetype]; }

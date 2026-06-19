@@ -54,6 +54,9 @@ public:
     // archetype = 0..4 (see EvolutionTree.h), stage = 1..10, aggressive = attacking.
     void draw(int centerX, int centerY, uint8_t archetype, uint8_t stage,
               bool aggressive = false, int mood = 0);
+
+    // Phase 0: render the encrypted egg (pre-hatch).
+    void drawEgg(int centerX, int centerY);
     
     void triggerAnimation(AnimState anim, int duration = 1000);
     int getStageFromLevel(int level);

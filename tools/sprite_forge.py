@@ -5,11 +5,12 @@ sprite_forge.py — asset pipeline for NeonGhost (CYD / ESP32).
 Converts PNG images into the raw RGB565 ``.bin`` frames the firmware loads from
 the SD card, following the layout:
 
-    /sprites/<archetype>/stage_<n>_<frame>.bin
+    /sprites/<prefix>/<prefix>_s<n>_<frame>.bin
 
-where ``<archetype>`` is one of: genesis, jammer, spammer, sniffer, striker
-``<n>`` is the milestone base index (1, 4, 8, 10) and ``<frame>`` is one of the
-expression frames (0=neutral, 1=blink, 2=happy, 3=angry).
+where ``<prefix>`` is one of: gen, jam, spa, sni, str (GENESIS/JAMMER/SPAMMER/
+SNIFFER/STRIKER). ``<n>`` is the base stage (1, 3, 5, 7, 9, 10 — even stages
+reuse the previous odd base) and ``<frame>`` is an expression frame
+(0=neutral, 1=blink, 2=happy, 3=angry).
 
 Each .bin is: 2-byte little-endian width, 2-byte height, then width*height
 RGB565 little-endian pixels. Transparent pixels (alpha < 128) are written as the
@@ -29,18 +30,18 @@ import os
 import struct
 import sys
 
-ARCHETYPES = ["genesis", "jammer", "spammer", "sniffer", "striker"]
-BASES = [1, 4, 8, 10]
+ARCHETYPES = ["gen", "jam", "spa", "sni", "str"]
+BASES = [1, 3, 5, 7, 9, 10]
 FRAMES = 4
 TRANSPARENT = 0xF81F
 
 # Per-archetype placeholder tint (RGB565) used when scaffolding without art.
 TINTS = {
-    "genesis": 0x07FF,
-    "jammer":  0xF800,
-    "spammer": 0xF81F,
-    "sniffer": 0x07E0,
-    "striker": 0xFFE0,
+    "gen": 0xFFFF,
+    "jam": 0xF800,
+    "spa": 0xF81F,
+    "sni": 0x041F,
+    "str": 0xFFE0,
 }
 
 
@@ -93,7 +94,7 @@ def scaffold(root, size):
         for n in BASES:
             for fr in range(FRAMES):
                 px = placeholder_frame(size, TINTS[arch], fr)
-                write_bin(os.path.join(d, f"stage_{n}_{fr}.bin"), size, size, px)
+                write_bin(os.path.join(d, f"{arch}_s{n}_{fr}.bin"), size, size, px)
     total = len(ARCHETYPES) * len(BASES) * FRAMES
     print(f"scaffolded {total} placeholder frames under {root}/sprites/")
 

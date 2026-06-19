@@ -47,22 +47,35 @@ static const char* ARCHETYPE_NAMES[ARCHETYPE_COUNT] = {
     "GENESIS", "JAMMER", "SPAMMER", "SNIFFER", "STRIKER"
 };
 
+// One-line theme per line (see evolution canvas).
+static const char* ARCHETYPE_TAGLINE[ARCHETYPE_COUNT] = {
+    "Codigo Puro",   // GENESIS - white hat / sysadmin
+    "Tanque BT",     // JAMMER  - BT Classic disruption
+    "Cyber-Psycho",  // SPAMMER - BLE spam / troll
+    "El Operativo",  // SNIFFER - recon / PCAP
+    "Interceptor"    // STRIKER - WiFi deauth
+};
+
 // Per-archetype tint (RGB565). Stage adds aura intensity on top of this.
 static const uint16_t ARCHETYPE_COLORS[ARCHETYPE_COUNT] = {
-    0x07FF, // GENESIS - cyan
-    0xF800, // JAMMER  - red
+    0xFFFF, // GENESIS - white (cyan/gold accents)
+    0xF800, // JAMMER  - deep red
     0xF81F, // SPAMMER - magenta
-    0x07E0, // SNIFFER - green
-    0xFFE0  // STRIKER - yellow
+    0x041F, // SNIFFER - dark blue
+    0xFFE0  // STRIKER - electric yellow
 };
 
 static const uint16_t ARCHETYPE_GLOW[ARCHETYPE_COUNT] = {
-    0x0410, 0x6000, 0x6008, 0x0320, 0x6300
+    0xFEA0, // gold
+    0x6000, // dark red
+    0x07E0, // acid green
+    0x05FF, // cyan
+    0xFD20  // orange
 };
 
-// SD folder name per archetype: /sprites/<folder>/stage_<base>_<frame>.bin
-static const char* ARCHETYPE_FOLDER[ARCHETYPE_COUNT] = {
-    "genesis", "jammer", "spammer", "sniffer", "striker"
+// SD path prefix per archetype: /sprites/<prefix>/<prefix>_s<N>_<frame>.bin
+static const char* ARCHETYPE_PREFIX[ARCHETYPE_COUNT] = {
+    "gen", "jam", "spa", "sni", "str"
 };
 
 // =============================================================================
@@ -114,17 +127,45 @@ static const PowerDef POWERS[] = {
 // STAGE / MILESTONE HELPERS
 // =============================================================================
 #define MAX_STAGE 10
+#define BASE_COUNT 6   // base sprites per line: s1, s3, s5, s7, s9, s10
 
-// Base image index (0..3) for a given stage. New base art at stages 4, 8, 10.
-inline uint8_t baseImageForStage(uint8_t stage) {
-    if (stage >= 10) return 3;
-    if (stage >= 8)  return 2;
-    if (stage >= 4)  return 1;
-    return 0;
+// Digimon-style phase per stage (1..10).
+static const char* PHASE_NAMES[MAX_STAGE + 1] = {
+    "Egg",                                  // 0 (unhatched)
+    "Baby", "Baby+", "In-Train", "In-Train+",
+    "Rookie", "Rookie+", "Champion", "Champion+",
+    "Ultimate", "APEX"
+};
+inline const char* phaseName(uint8_t stage) {
+    if (stage > MAX_STAGE) stage = MAX_STAGE;
+    return PHASE_NAMES[stage];
 }
 
+// Base image index (0..5). New base art loads at stages 1,3,5,7,9,10; the even
+// stages (2,4,6,8) reuse the previous odd base and only add an overlay.
+inline uint8_t baseImageForStage(uint8_t stage) {
+    if (stage >= 10) return 5; // s10
+    if (stage >= 9)  return 4; // s9
+    if (stage >= 7)  return 3; // s7
+    if (stage >= 5)  return 2; // s5
+    if (stage >= 3)  return 1; // s3
+    return 0;                  // s1 (stages 1,2)
+}
+
+// Stage number used in the SD filename for a base index: <prefix>_s<N>_<frame>.bin
+static const uint8_t BASE_STAGE_NUM[BASE_COUNT] = {1, 3, 5, 7, 9, 10};
+
+// Even stages add an additive overlay on top of the current base (stage 10 = APEX max FX).
+inline bool hasOverlay(uint8_t stage) { return (stage % 2) == 0; }
+
+// A milestone = the stage where a brand-new base image appears (celebrate + heal).
 inline bool isMilestone(uint8_t stage) {
-    return stage == 4 || stage == 8 || stage == 10;
+    return stage == 3 || stage == 5 || stage == 7 || stage == 9 || stage == 10;
+}
+
+// Major tier boundaries where an affinity-weighted line jump may happen.
+inline bool isJumpPoint(uint8_t stage) {
+    return stage == 5 || stage == 9; // Rookie, Ultimate
 }
 
 // Map total pet level to a stage (1..10) inside the current line. Tunable.

@@ -103,6 +103,8 @@ struct GameState {
     int lastMP = -1;
 } game;
 
+bool wantHatch = false; // set by a tap on the egg
+
 void setStatus(String line1, String line2, uint16_t color);
 void drawButtons();
 void drawTopBar();
@@ -182,9 +184,13 @@ void drawTopBar() {
     tft.setTextSize(1);
     tft.setTextColor(col, C_PANEL);
     tft.setCursor(50, 32);
-    tft.print(petStats.getArchetypeName());
-    tft.print(" S");
-    tft.print(petStats.getStage());
+    if (petStats.isEgg()) {
+        tft.print("EGG .ENC");
+    } else {
+        tft.print(petStats.getArchetypeName());
+        tft.print(" ");
+        tft.print(petStats.getPhaseName());
+    }
 
     // XP bar
     int xpX = 50, xpY = 5, xpW = 105, xpH = 12;
@@ -307,8 +313,12 @@ void drawGhost() {
         }
     }
 
-    creature.draw(centerX, centerY, (uint8_t)petStats.getArchetype(),
-                  petStats.getStage(), attackManager.busy());
+    if (petStats.isEgg()) {
+        creature.drawEgg(centerX, centerY);
+    } else {
+        creature.draw(centerX, centerY, (uint8_t)petStats.getArchetype(),
+                      petStats.getStage(), attackManager.busy());
+    }
 
     prevSpriteX = newSpriteX;
     prevSpriteY = newSpriteY;
@@ -505,6 +515,13 @@ void handleTouch(int tx, int ty) {
         return;
     }
 
+    // Tapping the encrypted egg "brute-forces" it open.
+    if (petStats.isEgg()) {
+        wantHatch = true;
+        setStatus("BRUTE FORCE", "Cracking core...", C_CYAN);
+        return;
+    }
+
     if (game.inMenuView) { handleMenuTouch(tx, ty); return; }
 
     if (ty >= BUTTON_Y) {
@@ -686,8 +703,12 @@ void setup() {
         creature.triggerAnimation(ANIM_DEATH, 999999);
     } else {
         drawBackground();
-        setStatus("ONLINE", petStats.getArchetypeName(), petStats.getArchetypeColor());
-        creature.triggerAnimation(ANIM_HAPPY, 1000);
+        if (petStats.isEgg()) {
+            setStatus("ENCRYPTED EGG", "Tap to brute-force", C_CYAN);
+        } else {
+            setStatus("ONLINE", petStats.getArchetypeName(), petStats.getArchetypeColor());
+            creature.triggerAnimation(ANIM_HAPPY, 1000);
+        }
     }
 
     bleScanner.startScan();
@@ -729,6 +750,20 @@ void loop() {
 
     petStats.update();
 
+    // Phase 0: the egg hatches on interaction or after ~20s, reading entropy to
+    // pick the initial archetype.
+    static unsigned long lifeStart = 0;
+    if (lifeStart == 0) lifeStart = now;
+    if (petStats.isEgg() && (wantHatch || now - lifeStart > 20000)) {
+        wantHatch = false;
+        petStats.hatchEgg();
+        petStats.justJumped = false;
+        petStats.justEvolved = false;
+        creature.triggerAnimation(ANIM_EVOLVING, 2500);
+        drawBackground();
+        setStatus("HATCHED!", petStats.getArchetypeName(), petStats.getArchetypeColor());
+    }
+
     // BLE discovery rewards
     bleScanner.loop();
     if (bleScanner.hasNewDevice()) {
@@ -743,8 +778,9 @@ void loop() {
         game.topBarDirty = true;
     }
 
-    // Attack orchestration (default auto BT+BLE + radio switching).
-    attackManager.loop();
+    // Attack orchestration (default auto BT+BLE + radio switching). Powers stay
+    // dormant until the egg hatches and an archetype is assigned.
+    if (!petStats.isEgg()) attackManager.loop();
 
     // React to attack state (pet turns red / trembles / strobe LED).
     bool busy = attackManager.busy();
@@ -781,7 +817,7 @@ void loop() {
     }
 
     // Reset status banner
-    if (!petStats.stats.isSleeping && !busy && now - game.alertStart > 4000) {
+    if (!petStats.stats.isSleeping && !busy && !petStats.isEgg() && now - game.alertStart > 4000) {
         if (game.statusLine1 != "SCANNING...") {
             setStatus("SCANNING...", petStats.getArchetypeName(), petStats.getArchetypeColor());
         }

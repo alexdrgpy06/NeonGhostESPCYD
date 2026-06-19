@@ -22,11 +22,21 @@ is best-effort and may be dropped by newer ESP-IDF. The single radio is
 time-shared: BLE and WiFi do not run promiscuously at the same time.
 
 ## 🧬 Evolution model
-- **5 archetypes (style lines):** GENESIS, JAMMER (BT disruption), SPAMMER (BLE
-  spam), SNIFFER (recon/PCAP), STRIKER (WiFi).
-- **10 stages per line.** Stages are mostly **additive** (growing aura/FX); the
-  **base image changes at milestones 4, 8 and 10**, where the pet may also
-  **jump to another line** semi-randomly, weighted by its dominant affinity.
+See [`docs/EVOLUTION_CANVAS.md`](docs/EVOLUTION_CANVAS.md) for the full visual
+design of every stage.
+
+- **Phase 0 — Encrypted Egg (.ENC):** every pet starts as a pulsing data core.
+  It hatches on interaction (or after a short time), reading local
+  radio/hardware **entropy to assign the initial archetype**.
+- **5 archetypes (style lines):** GENESIS (white-hat / sysadmin), JAMMER (BT
+  disruption), SPAMMER (BLE spam / troll), SNIFFER (recon / PCAP), STRIKER (WiFi
+  deauth).
+- **10 stages per line** following Digimon-style phases (Baby → In-Training →
+  Rookie → Champion → Ultimate → APEX). **6 base sprites** load at stages
+  **1, 3, 5, 7, 9, 10**; the even stages **reuse the previous base + an additive
+  overlay** (auras, FX, accessories). Stage 10 is the APEX with max FX.
+- **Line jumps:** at major tier points (Rookie/Ultimate) the pet may
+  **semi-randomly jump to another line**, weighted by its dominant affinity.
 - **No gating:** every power is always available. Stages grow visuals and
   **power mastery** (potency / lower MP).
 - **Default = automatic BT + BLE.** Picking a power from the menu runs it *and*

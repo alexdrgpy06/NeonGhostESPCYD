@@ -47,6 +47,7 @@ struct PetStats {
     // State
     bool isSleeping;
     bool isDead;
+    bool hatched;        // Phase 0: false = encrypted egg, archetype undetermined
 };
 
 // =============================================================================
@@ -96,10 +97,16 @@ public:
     // Effective MP cost of a power (home cheaper, foreign pricier, mastery cuts).
     int powerMpCost(uint8_t powerId);
 
+    // Phase 0: hatch the encrypted egg, assigning the initial archetype from
+    // local radio/hardware entropy.
+    void hatchEgg();
+    bool isEgg() { return !stats.hatched; }
+
     // Getters
     Archetype   getArchetype();
     uint8_t     getStage();
     const char* getArchetypeName();
+    const char* getPhaseName();
     uint16_t    getArchetypeColor();
     uint16_t    getArchetypeGlow();
 
