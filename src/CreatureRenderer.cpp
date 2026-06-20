@@ -513,11 +513,20 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
                                (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                                (pgm_read_byte(&sprite[row * 3 + 2]));
 
-            for (int col = 0; col < 24; col++) {
-                if ((rowData >> (23 - col)) & 0x01) {
-                    int px = drawX + col * scale;
+            // ⚡ Bolt: Run-length encoding (RLE) for contiguous horizontal pixels.
+            // Significantly reduces TFT SPI driver overhead compared to pixel-by-pixel rendering.
+            int startCol = -1;
+            for (int col = 0; col <= 24; col++) {
+                bool pixelOn = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+
+                if (pixelOn && startCol == -1) {
+                    startCol = col;
+                } else if (!pixelOn && startCol != -1) {
+                    int px = drawX + startCol * scale;
                     int py = drawY + row * scale;
-                    spr->fillRect(px, py, scale, scale, color);
+                    int width = (col - startCol) * scale;
+                    spr->fillRect(px, py, width, scale, color);
+                    startCol = -1;
                 }
             }
         }
