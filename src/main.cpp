@@ -128,7 +128,8 @@ Ability abilities[] = {
     {"Swift Pair",   1, 5,  15000, 0},   // GHOST
     {"BLE Flood",    1, 8,  18000, 0},   // SPECTER
     {"AirTag Spam",  1, 8,  20000, 0},   // PHANTOM
-    {"Samsung Spam", 1, 10, 22000, 0},   // WRAITH
+    {"BT Deauth",    1, 12, 28000, 0},   // REVENANT
+    {"Samsung Spam", 1, 10, 20000, 0},   // WRAITH
     {"Name Spam",    1, 10, 25000, 0},   // SHADE
     {"Pair Spam",    1, 12, 28000, 0},   // REVENANT
     {"DevInfo Spam", 1, 12, 30000, 0},   // BANSHEE
@@ -187,6 +188,9 @@ void processAbilities() {
             creature.triggerAnimation(ANIM_ATTACK, 15000);
         } else if (strcmp(a->name, "AirTag Spam") == 0) {
             bleScanner.airTagSpam();
+            creature.triggerAnimation(ANIM_ATTACK, 15000);
+        } else if (strcmp(a->name, "BT Deauth") == 0) {
+            bleScanner.btDeauth();
             creature.triggerAnimation(ANIM_ATTACK, 15000);
         } else if (strcmp(a->name, "Samsung Spam") == 0) {
             bleScanner.samsungSpam();
@@ -781,15 +785,16 @@ void handleTouch(int tx, int ty) {
                 int pick = affordable[random(0, count)];
                 petStats.stats.mp -= abilities[pick].mpCost;
                 petStats.addXP(XP_AUTO_ATTACK * 2); // Bonus XP for manual attack
-                
+                    
                 creature.triggerAnimation(ANIM_ATTACK, 1500);
-                
+                    
                 setStatus("ATTACK!", abilities[pick].name, C_BLUE);
                 game.topBarDirty = true;
             } else {
                 setStatus("LOW MP!", "Need more power...", C_RED);
                 creature.triggerAnimation(ANIM_CRITICAL, 500);
             }
+        } else if (tx >= 155 && tx < 225) {
         } else if (tx >= 155 && tx < 225) {
             // MENU
             game.inMenuView = true;
