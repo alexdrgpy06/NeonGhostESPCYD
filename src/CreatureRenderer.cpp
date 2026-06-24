@@ -513,11 +513,18 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
                                (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                                (pgm_read_byte(&sprite[row * 3 + 2]));
 
-            for (int col = 0; col < 24; col++) {
-                if ((rowData >> (23 - col)) & 0x01) {
-                    int px = drawX + col * scale;
+            // RLE Optimization: Group contiguous horizontal pixels
+            int rleStart = -1;
+            for (int col = 0; col <= 24; col++) {
+                bool isSet = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+                if (isSet && rleStart == -1) {
+                    rleStart = col;
+                } else if (!isSet && rleStart != -1) {
+                    int px = drawX + rleStart * scale;
                     int py = drawY + row * scale;
-                    spr->fillRect(px, py, scale, scale, color);
+                    int pWidth = (col - rleStart) * scale;
+                    spr->fillRect(px, py, pWidth, scale, color);
+                    rleStart = -1;
                 }
             }
         }
@@ -644,9 +651,18 @@ void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        // RLE Optimization: Group contiguous horizontal pixels
+        int rleStart = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool isSet = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+            if (isSet && rleStart == -1) {
+                rleStart = col;
+            } else if (!isSet && rleStart != -1) {
+                int px = x + rleStart * scale;
+                int py = y + row * scale;
+                int pWidth = (col - rleStart) * scale;
+                spr->fillRect(px, py, pWidth, scale, color);
+                rleStart = -1;
             }
         }
     }
