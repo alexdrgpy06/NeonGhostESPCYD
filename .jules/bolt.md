@@ -1,0 +1,3 @@
+## 2024-05-24 - RLE Optimization for TFT Displays
+**Learning:** Pixel-by-pixel rendering on hardware TFT displays via SPI (like `fillRect` for each 1x1 pixel) incurs massive overhead due to individual transaction latency. Grouping contiguous horizontal pixels of the same color into a single `fillRect` call significantly reduces this SPI bottleneck.
+**Action:** Always use Run-Length Encoding (RLE) when rendering solid blocks or pixel art sprites on hardware displays. Flush trailing contiguous pixels by evaluating the pixel status as strictly false when indexing one step out-of-bounds (e.g., `col <= width`).
