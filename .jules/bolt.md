@@ -1,0 +1,3 @@
+## 2024-06-27 - Optimize hardware display rendering with Run-Length Encoding
+**Learning:** When rendering solid blocks or pixel art sprites on hardware displays using a TFT SPI driver, making individual draw calls for every single pixel causes significant overhead and bottlenecks the rendering pipeline.
+**Action:** Use Run-Length Encoding (RLE) to group contiguous horizontal pixels of the same color into a single `fillRect` call, significantly reducing the number of SPI transactions. When implementing RLE for C++ rendering loops, cleanly flush any trailing contiguous pixels by extending the bounds of the column loop by one (e.g., `col <= width`) and evaluating the pixel status as strictly false when indexing out-of-bounds.
