@@ -513,11 +513,21 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
                                (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                                (pgm_read_byte(&sprite[row * 3 + 2]));
 
-            for (int col = 0; col < 24; col++) {
-                if ((rowData >> (23 - col)) & 0x01) {
-                    int px = drawX + col * scale;
-                    int py = drawY + row * scale;
-                    spr->fillRect(px, py, scale, scale, color);
+            // Optimize: Run-Length Encoding (RLE) to group contiguous pixels
+            int startCol = -1;
+            for (int col = 0; col <= 24; col++) {
+                bool isSet = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+
+                if (isSet) {
+                    if (startCol == -1) startCol = col;
+                } else {
+                    if (startCol != -1) {
+                        int px = drawX + startCol * scale;
+                        int py = drawY + row * scale;
+                        int width = (col - startCol) * scale;
+                        spr->fillRect(px, py, width, scale, color);
+                        startCol = -1;
+                    }
                 }
             }
         }
@@ -644,9 +654,18 @@ void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        // Optimize: Run-Length Encoding (RLE) to group contiguous pixels
+        int startCol = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool isSet = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+
+            if (isSet) {
+                if (startCol == -1) startCol = col;
+            } else {
+                if (startCol != -1) {
+                    spr->fillRect(x + startCol * scale, y + row * scale, (col - startCol) * scale, scale, color);
+                    startCol = -1;
+                }
             }
         }
     }
