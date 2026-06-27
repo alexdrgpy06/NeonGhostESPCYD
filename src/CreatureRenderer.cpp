@@ -508,16 +508,24 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
         spr->setSwapBytes(true);
     } else {
         // Procedural 1-bit fallback silhouette.
+        // ⚡ Bolt: Optimize with Run-Length Encoding (RLE) to reduce TFT SPI driver overhead
         for (int row = 0; row < 24; row++) {
             uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                                (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                                (pgm_read_byte(&sprite[row * 3 + 2]));
 
-            for (int col = 0; col < 24; col++) {
-                if ((rowData >> (23 - col)) & 0x01) {
-                    int px = drawX + col * scale;
+            int runStart = -1;
+            for (int col = 0; col <= 24; col++) {
+                bool isPixel = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+
+                if (isPixel && runStart == -1) {
+                    runStart = col;
+                } else if (!isPixel && runStart != -1) {
+                    int px = drawX + runStart * scale;
                     int py = drawY + row * scale;
-                    spr->fillRect(px, py, scale, scale, color);
+                    int runLength = col - runStart;
+                    spr->fillRect(px, py, runLength * scale, scale, color);
+                    runStart = -1;
                 }
             }
         }
@@ -639,14 +647,24 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
 }
 
 void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t color, int scale) {
+    // ⚡ Bolt: Optimize with Run-Length Encoding (RLE) to reduce TFT SPI driver overhead
     for (int row = 0; row < 24; row++) {
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        int runStart = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool isPixel = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+
+            if (isPixel && runStart == -1) {
+                runStart = col;
+            } else if (!isPixel && runStart != -1) {
+                int px = x + runStart * scale;
+                int py = y + row * scale;
+                int runLength = col - runStart;
+                spr->fillRect(px, py, runLength * scale, scale, color);
+                runStart = -1;
             }
         }
     }
