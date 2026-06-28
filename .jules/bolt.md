@@ -1,0 +1,3 @@
+## 2024-06-28 - TFT Rendering SPI Overhead
+**Learning:** Pixel-by-pixel rendering on hardware displays using `fillRect` introduces significant SPI driver overhead. Rendering solid blocks or pixel art sprites without batching contiguous horizontal pixels slows down the rendering loop considerably.
+**Action:** When rendering pixel art or continuous shapes, use run-length encoding (RLE) by grouping contiguous horizontal pixels of the same color into a single `fillRect` call to minimize TFT driver overhead. Extend column loops by one to cleanly flush trailing pixels.
