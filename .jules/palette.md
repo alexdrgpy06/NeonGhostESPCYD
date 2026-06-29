@@ -1,0 +1,3 @@
+## 2024-05-15 - Immediate visual feedback on touchscreens
+**Learning:** Immediate visual feedback (e.g., momentarily redrawing with inverted colors using a short delay, ~50ms) on physical touchscreens is critical to prevent users from repeatedly tapping buttons.
+**Action:** Always implement a momentary inverted-color redraw or similar visual cue upon button press to ensure responsive embedded hardware UX.
