@@ -1,0 +1,3 @@
+## 2024-05-18 - Hardware Sprite Run-Length Encoding
+**Learning:** When rendering solid blocks or pixel art sprites on hardware displays using a TFT SPI driver, issuing a separate `fillRect` call for every single set pixel introduces significant overhead.
+**Action:** When implementing rendering loops, group contiguous horizontal pixels of the same color into a single `fillRect` call using Run-Length Encoding (RLE) to significantly reduce TFT SPI driver overhead compared to pixel-by-pixel rendering. Cleanly flush any trailing contiguous pixels by extending the bounds of the column loop by one and evaluating the pixel status as strictly false when indexing out-of-bounds.
