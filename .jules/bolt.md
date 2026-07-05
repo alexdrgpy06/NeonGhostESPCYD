@@ -1,0 +1,3 @@
+## 2024-07-05 - Optimize TFT rendering with Run-Length Encoding
+**Learning:** Drawing individual pixels or 1x1 rectangles over SPI on embedded hardware displays (like the ESP32 CYD) has massive driver overhead. When drawing 1-bit pixel art, iterating column-by-column and issuing a draw call for every solid pixel is a major bottleneck.
+**Action:** When rendering pixel art or solid blocks, implement Run-Length Encoding (RLE) to group contiguous horizontal pixels of the same color into a single `fillRect` call, drastically reducing SPI overhead and increasing framerates. Always flush trailing runs by extending the column loop bounds by one.
