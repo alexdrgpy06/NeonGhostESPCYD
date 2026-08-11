@@ -507,17 +507,25 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
         spr->pushImage(ax, ay, frameW, frameH, frameBuf, (uint16_t)SD_TRANSPARENT565);
         spr->setSwapBytes(true);
     } else {
-        // Procedural 1-bit fallback silhouette.
+        // Procedural 1-bit fallback silhouette (RLE Optimized)
+        // Group contiguous pixels into a single fillRect to reduce SPI driver overhead
         for (int row = 0; row < 24; row++) {
             uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                                (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                                (pgm_read_byte(&sprite[row * 3 + 2]));
 
-            for (int col = 0; col < 24; col++) {
-                if ((rowData >> (23 - col)) & 0x01) {
-                    int px = drawX + col * scale;
-                    int py = drawY + row * scale;
-                    spr->fillRect(px, py, scale, scale, color);
+            int runStart = -1;
+            for (int col = 0; col <= 24; col++) {
+                bool pixelOn = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+
+                if (pixelOn) {
+                    if (runStart == -1) runStart = col;
+                } else {
+                    if (runStart != -1) {
+                        int runLength = col - runStart;
+                        spr->fillRect(drawX + runStart * scale, drawY + row * scale, runLength * scale, scale, color);
+                        runStart = -1;
+                    }
                 }
             }
         }
@@ -639,14 +647,24 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
 }
 
 void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t color, int scale) {
+    // RLE Optimized to reduce TFT driver overhead
     for (int row = 0; row < 24; row++) {
         uint32_t rowData = (pgm_read_byte(&sprite[row * 3]) << 16) |
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        int runStart = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool pixelOn = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+
+            if (pixelOn) {
+                if (runStart == -1) runStart = col;
+            } else {
+                if (runStart != -1) {
+                    int runLength = col - runStart;
+                    spr->fillRect(x + runStart * scale, y + row * scale, runLength * scale, scale, color);
+                    runStart = -1;
+                }
             }
         }
     }
