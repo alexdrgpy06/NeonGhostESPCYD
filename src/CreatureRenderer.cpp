@@ -513,11 +513,20 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
                                (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                                (pgm_read_byte(&sprite[row * 3 + 2]));
 
-            for (int col = 0; col < 24; col++) {
-                if ((rowData >> (23 - col)) & 0x01) {
-                    int px = drawX + col * scale;
-                    int py = drawY + row * scale;
-                    spr->fillRect(px, py, scale, scale, color);
+            int runStart = -1;
+            for (int col = 0; col <= 24; col++) {
+                bool isActive = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+                if (isActive) {
+                    if (runStart == -1) runStart = col;
+                } else {
+                    if (runStart != -1) {
+                        int runLen = col - runStart;
+                        int px = drawX + runStart * scale;
+                        int py = drawY + row * scale;
+                        // ⚡ RLE Optimization: Batch contiguous horizontal pixels into one fillRect
+                        spr->fillRect(px, py, runLen * scale, scale, color);
+                        runStart = -1;
+                    }
                 }
             }
         }
@@ -644,9 +653,18 @@ void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        int runStart = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool isActive = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+            if (isActive) {
+                if (runStart == -1) runStart = col;
+            } else {
+                if (runStart != -1) {
+                    int runLen = col - runStart;
+                    // ⚡ RLE Optimization: Batch contiguous horizontal pixels into one fillRect
+                    spr->fillRect(x + runStart * scale, y + row * scale, runLen * scale, scale, color);
+                    runStart = -1;
+                }
             }
         }
     }
