@@ -1,0 +1,3 @@
+## 2026-08-14 - Immediate Touch Feedback on Physical Displays
+**Learning:** When developing UIs for resistive touchscreens on embedded hardware (like the ESP32 CYD), buttons often feel unresponsive because there is no immediate visual state change upon touch, causing users to repeatedly tap the screen and trigger multiple unintended actions.
+**Action:** Add a brief visual 'pressed' state (like inverting colors) paired with a small non-blocking delay (~50ms) to any active button area immediately upon touch detection before executing the main logic. This provides instant tactile feedback to the user.
