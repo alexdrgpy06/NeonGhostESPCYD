@@ -1,0 +1,3 @@
+## 2024-05-24 - Hardware TFT Run-Length Encoding Insight
+**Learning:** For rendering procedural 1-bit sprites on the TFT screen (ILI9341 via TFT_eSPI), calling `fillRect` pixel-by-pixel (1 pixel per bit) has massive SPI overhead due to setting up the address window and commands for every single pixel.
+**Action:** When rendering pixel art or solid blocks, use run-length encoding (RLE). Group contiguous horizontal pixels of the same color into a single `fillRect` call instead of drawing each pixel individually. Ensure the loop boundary handles flushing the final run by checking up to `col <= width` and strictly gating any bitwise checks with bounds.
