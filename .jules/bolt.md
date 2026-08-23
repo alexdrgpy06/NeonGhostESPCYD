@@ -1,0 +1,3 @@
+## 2024-05-24 - Hardware Rendering Optimization
+**Learning:** In C++ rendering loops for hardware displays (like `TFT_eSPI`), rendering pixel-by-pixel or small 4x4 blocks via `fillRect` inside a tight loop causes significant SPI overhead. Grouping contiguous horizontal pixels of the same color into a single Run-Length Encoded (RLE) `fillRect` call significantly reduces the number of SPI driver calls, improving rendering speed.
+**Action:** When drawing bitmapped graphics on embedded TFTs, implement RLE by accumulating contiguous pixels in the column loop and issuing a single `fillRect` when the run ends or the row ends. Ensure short-circuit out-of-bounds checks are used to prevent Undefined Behavior on the row data when flushing the end of a line.

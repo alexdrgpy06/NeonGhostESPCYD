@@ -513,11 +513,20 @@ void CreatureRenderer::draw(int centerX, int centerY, uint8_t archetype, uint8_t
                                (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                                (pgm_read_byte(&sprite[row * 3 + 2]));
 
-            for (int col = 0; col < 24; col++) {
-                if ((rowData >> (23 - col)) & 0x01) {
-                    int px = drawX + col * scale;
-                    int py = drawY + row * scale;
-                    spr->fillRect(px, py, scale, scale, color);
+            // ⚡ Bolt: Run-Length Encoding (RLE) for contiguous pixels to reduce SPI driver overhead
+            int startCol = -1;
+            for (int col = 0; col <= 24; col++) {
+                bool isPixelSet = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+                if (isPixelSet) {
+                    if (startCol == -1) startCol = col;
+                } else {
+                    if (startCol != -1) {
+                        int runLength = col - startCol;
+                        int px = drawX + startCol * scale;
+                        int py = drawY + row * scale;
+                        spr->fillRect(px, py, runLength * scale, scale, color);
+                        startCol = -1;
+                    }
                 }
             }
         }
@@ -644,9 +653,18 @@ void CreatureRenderer::drawSprite(int x, int y, const uint8_t* sprite, uint16_t 
                            (pgm_read_byte(&sprite[row * 3 + 1]) << 8) |
                            (pgm_read_byte(&sprite[row * 3 + 2]));
         
-        for (int col = 0; col < 24; col++) {
-            if ((rowData >> (23 - col)) & 0x01) {
-                spr->fillRect(x + col * scale, y + row * scale, scale, scale, color);
+        // ⚡ Bolt: Run-Length Encoding (RLE) for contiguous pixels to reduce SPI driver overhead
+        int startCol = -1;
+        for (int col = 0; col <= 24; col++) {
+            bool isPixelSet = (col < 24) && ((rowData >> (23 - col)) & 0x01);
+            if (isPixelSet) {
+                if (startCol == -1) startCol = col;
+            } else {
+                if (startCol != -1) {
+                    int runLength = col - startCol;
+                    spr->fillRect(x + startCol * scale, y + row * scale, runLength * scale, scale, color);
+                    startCol = -1;
+                }
             }
         }
     }
